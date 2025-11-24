@@ -1,0 +1,76 @@
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+module Cardano.LTL.Transform(
+    step
+  , end
+  , Relevance(..)
+  ) where
+
+import           Cardano.LTL.Lang
+import           Cardano.LTL.Subst (substFormula)
+import           Data.List         hiding (lookup)
+import           Data.Map.Strict   (lookup)
+import qualified Data.Set          as Set
+import           Prelude           hiding (lookup)
+
+-- | Applicative-functor of relevance tracking. Product is relevant if either of the constituents is.
+data Relevance a = Relevant Bool a
+
+instance Functor Relevance where
+  fmap f (Relevant t x) = Relevant t (f x)
+
+instance Applicative Relevance where
+  pure = Relevant False
+  Relevant b f <*> Relevant b' x = Relevant (b || b') (f x)
+
+-- | Tag a computation as irrelevant to the current step.
+irrelevant :: a -> Relevance a
+irrelevant = Relevant False
+
+-- | Tag a computation as relevant to the current step.
+relevant :: a -> Relevance a
+relevant = Relevant True
+
+-- | Fast forwards the formula through the given event.
+-- | Returns an equivalent formula and whether the event is "relevant".
+-- | An event is relevant in a formula iff the formula contains an atom of that event type "now".
+step :: (Event m ty, Eq ty) => Formula ty -> m -> Relevance (Formula ty)
+step (Forall phi) s = (\x -> And [x, Forall phi]) <$> step phi s
+step (Exists phi) s = (\x -> Or [x, Exists phi]) <$> step phi s
+step (Next _ phi) _ = irrelevant phi
+step (RepeatNext _ 0 phi) s = step phi s
+step (RepeatNext w k phi) s = (\x -> Or [x, RepeatNext w (k - 1) phi]) <$> step phi s
+step (Until w phi psi) s = (\x y -> Or [x, And [y, Until w phi psi]]) <$> step psi s <*> step phi s
+step (And phis) s = And <$> traverse (`step` s) phis
+step (Or phis) s = Or <$> traverse (`step` s) phis
+step (Implies phi psi) s = Implies <$> step phi s <*> step psi s
+step (Not phi) s = Not <$> step phi s
+step Bottom _ = irrelevant Bottom
+step Top _ = irrelevant Top
+step (PropAtom c is) s | ty s == c =
+  relevant $ And $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
+    case lookup key (props s) of
+      Just v  -> PropEq t v
+      -- NOTE: Shall we have a config option for either crashing hard or returning ⊥ in case there is no such key?
+      Nothing -> Bottom
+step (PropForall x phi) s = PropForall x <$> step phi s
+step (PropAtom _ _) _ = irrelevant Bottom
+step (PropEq a b) _ = irrelevant $ PropEq a b
+
+-- | Check if the formula is a tautology, assuming the end of timeline.
+end :: [PropValue] -> Formula a -> Bool
+end _ (Forall _)              = True
+end _ (Exists _)              = False
+end _ (Next w _)              = w
+end idxs (RepeatNext _ 0 phi) = end idxs phi
+end _ (RepeatNext w _ _)      = w
+end _ (Until w _ _)           = w
+end idxs (And phis)           = foldl' (&&) True (fmap (end idxs) phis)
+end idxs (Or phis)            = foldl' (||) False (fmap (end idxs) phis)
+end idxs (Implies phi psi)    = not (end idxs phi) || end idxs psi
+end idxs (Not phi)            = not (end idxs phi)
+end _ Bottom                  = False
+end _ Top                     = True
+end _ (PropAtom _ _)          = False
+end idxs (PropForall x phi)   = foldl' (\acc idx -> acc && end idxs (substFormula idx x phi)) True idxs
+end _ (PropEq (Const v) v')   = v == v'
+end _ (PropEq (Var x) _)      = error $ "Encountered a var: " <> x
