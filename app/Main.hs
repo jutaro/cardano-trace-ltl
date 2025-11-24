@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main(main) where
 
 import           Cardano.LTL.Check   (checkFormula)

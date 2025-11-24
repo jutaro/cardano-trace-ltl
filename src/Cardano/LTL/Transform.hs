@@ -10,6 +10,7 @@ import           Cardano.LTL.Subst (substFormula)
 import           Data.List         hiding (lookup)
 import           Data.Map.Strict   (lookup)
 import qualified Data.Set          as Set
+import           Data.Text         (unpack)
 import           Prelude           hiding (lookup)
 
 -- | Applicative-functor of relevance tracking. Product is relevant if either of the constituents is.
@@ -73,4 +74,4 @@ end _ Top                     = True
 end _ (PropAtom _ _)          = False
 end idxs (PropForall x phi)   = foldl' (\acc idx -> acc && end idxs (substFormula idx x phi)) True idxs
 end _ (PropEq (Const v) v')   = v == v'
-end _ (PropEq (Var x) _)      = error $ "Encountered a var: " <> x
+end _ (PropEq (Var x) _)      = error $ "Encountered a var: " <> unpack x

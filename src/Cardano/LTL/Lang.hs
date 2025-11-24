@@ -11,17 +11,18 @@ module Cardano.LTL.Lang (
 
 import           Data.Map.Strict (Map)
 import           Data.Set        (Set)
+import           Data.Text       (Text)
 
 -- | A property name (e.g. "thread", "node", etc.).
-type PropName = String
+type PropName = Text
 
 -- | Default name: x.
 -- | Identifier denoting an event property variable.
-type PropVarIdentifier = String
+type PropVarIdentifier = Text
 
 -- | Default name: v.
--- | An event property that can be either `Int` or `String`.
-data PropValue = IntValue Int | StringValue String deriving (Show, Ord, Eq)
+-- | An event property that can be either `Int` or `Text`.
+data PropValue = IntValue Int | TextValue Text deriving (Show, Ord, Eq)
 
 -- | Default name: t.
 -- | A term representing a constant property or a variable property.
@@ -109,4 +110,4 @@ data Formula ty =
 -- |  — it has a set of key-value pairs `props` of integer or string properties
 class Event a ty | a -> ty where
   ty :: a -> ty
-  props :: a -> Map String PropValue
+  props :: a -> Map Text PropValue

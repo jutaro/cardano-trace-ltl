@@ -1,4 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+
 module Main(main) where
 
 import           Cardano.LTL.Check   (Error (..), checkFormula)
@@ -7,6 +9,7 @@ import           Cardano.LTL.Pretty  (Lvl (Z), prettyFormula)
 import           Cardano.LTL.Satisfy (SatisfactionResult (..), satisfies)
 import           Data.Map            (singleton)
 import           Data.Set            (fromList)
+import           Data.Text           (unpack)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
@@ -141,15 +144,15 @@ syn2 = PropForall "i" (PropAtom () (fromList [PropConstraint "idx" (Var "j")]))
 syntacticTests :: TestTree
 syntacticTests = testGroup "Syntanctic checks"
   [
-    testCase (prettyFormula syn1 Z <> " is syntactically valid") $
+    testCase (unpack $ prettyFormula syn1 Z <> " is syntactically valid") $
       [] @?= checkFormula mempty syn1
   ,
-    testCase (prettyFormula syn2 Z <> " is syntactically invalid") $
+    testCase (unpack $ prettyFormula syn2 Z <> " is syntactically invalid") $
       [UnboundPropVarIdentifier "j"] @?= checkFormula mempty syn2
   ]
 
 prop1SatisfiabilityTests :: TestTree
-prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> prettyFormula prop1 Z)
+prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFormula prop1 Z))
   [ testCase (show log1 <> " satisfies the formula") $
       satisfies prop1 log1 @?= Satisfied
   , testCase (show log2 <> " satisfies the formula") $
@@ -168,7 +171,7 @@ prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> prettyFormula pro
   ]
 
 prop2SatisfiabilityTests :: TestTree
-prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> prettyFormula prop2 Z)
+prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFormula prop2 Z))
   [
     testCase (show log1 <> " satisfies the formula") $
       satisfies prop2 log1 @?= Satisfied

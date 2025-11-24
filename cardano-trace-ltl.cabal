@@ -10,7 +10,7 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
 common warnings
-    ghc-options: -Wall
+    ghc-options:
 
 library
     import:           warnings
@@ -27,6 +27,7 @@ library
 
     build-depends:    base
                     , containers
+                    , text
 
     hs-source-dirs:   src
 
@@ -60,7 +61,8 @@ test-suite cardano-trace-ltl-test
   main-is: Unit.hs
   build-depends:
       base
-    , containers
     , cardano-trace-ltl
+    , containers
     , tasty
     , tasty-hunit
+    , text

@@ -6,14 +6,15 @@ module Cardano.LTL.Check(
   ) where
 
 import           Cardano.LTL.Lang
-import           Data.List        hiding (insert)
+import           Data.List        (foldl')
 import           Data.Set         (Set, insert, member)
 import qualified Data.Set         as Set
+import           Data.Text        (Text)
 
 data Error = UnboundPropVarIdentifier PropVarIdentifier deriving (Show, Eq)
 
 -- | Verify the given parameter variable is bound in the current context.
-checkParamVar :: Set PropVarIdentifier -> String -> [Error]
+checkParamVar :: Set PropVarIdentifier -> Text -> [Error]
 checkParamVar bound x | member x bound  = []
 checkParamVar _ x  = [UnboundPropVarIdentifier x]
 

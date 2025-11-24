@@ -6,18 +6,19 @@ module Cardano.LTL.Subst (
 
 import           Cardano.LTL.Lang
 import qualified Data.Set         as Set
+import           Data.Text        (Text)
 
 -- | t[v / x]
-substPropTerm :: PropValue -> String -> PropTerm -> PropTerm
+substPropTerm :: PropValue -> Text -> PropTerm -> PropTerm
 substPropTerm v x (Var x') | x == x' = Const v
 substPropTerm _ _ t = t
 
 -- | c[v / x]
-substPropConstraint :: PropValue -> String -> PropConstraint -> PropConstraint
+substPropConstraint :: PropValue -> Text -> PropConstraint -> PropConstraint
 substPropConstraint v x (PropConstraint k t) = PropConstraint k (substPropTerm v x t)
 
 -- | φ[v / x]
-substFormula :: PropValue -> String -> Formula a -> Formula a
+substFormula :: PropValue -> Text -> Formula a -> Formula a
 substFormula v x (Forall phi) = Forall (substFormula v x phi)
 substFormula v x (Exists phi) = Exists (substFormula v x phi)
 substFormula v x (Next w phi) = Next w (substFormula v x phi)
