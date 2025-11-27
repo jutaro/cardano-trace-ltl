@@ -1,8 +1,6 @@
 Cardano Trace LTL Overview
 ==========================
 
-Goal
-----
 Explain a version of linear temporal logic that is suitable for Cardano trace analysis.
 
 1. Temporal Vocabulary
