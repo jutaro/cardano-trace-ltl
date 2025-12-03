@@ -1,12 +1,24 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main(main) where
 
-import           Cardano.LTL.Check   (checkFormula)
+import           Cardano.Logging.Types.TraceMessage (TraceMessage (..))
+import           Cardano.LTL.Check (checkFormula)
 import           Cardano.LTL.Lang
 import           Cardano.LTL.Satisfy
-import           Data.Map            (singleton)
-import           Data.Set            (fromList)
+import           Cardano.Trace.Feed (read)
+
+import           Prelude hiding (read)
+import qualified Prelude
+
+import           Control.Monad (unless)
+import           Data.Foldable (for_)
+import           Data.List (find)
+import           Data.Map (singleton)
+import           Data.Maybe (isJust)
+import           Data.Set (fromList)
+import           Data.Text (unpack)
 
 type Identifier = Int
 
@@ -68,47 +80,67 @@ log8 =
     Msg Success 1
   ]
 
--- ∀i. ☐ (Start("idx" = i) ⇒ ◯(5) (Success("idx" = i) ∨ Failure("idx" = i)))
-prop1 :: Formula Ty
-prop1 = PropForall "i" $ Forall $
+data Leadership = Check | Yes | No | Irrelevant deriving (Show, Eq)
+
+-- Forge.Loop.StartLeadershipCheck
+-- Forge.Loop.NodeNotLeader
+-- Forge.Loop.NodeIsLeader
+
+instance Event [TraceMessage] Leadership where
+  ty msgs =
+    if | isJust $ find (\msg -> tmsgNS msg == "Forge.Loop.StartLeadershipCheck") msgs -> Check
+       | isJust $ find (\msg -> tmsgNS msg == "Forge.Loop.NodeNotLeader") msgs        -> No
+       | isJust $ find (\msg -> tmsgNS msg == "Forge.Loop.NodeIsLeader") msgs         -> Yes
+       | otherwise                                                                    -> Irrelevant
+  props [] = mempty
+  props (msg : _) = singleton "thread" (IntValue (Prelude.read $ unpack $ tmsgThread msg))
+
+-- ☐ (Check ⇒ ◯(10ms) (Yes ∨ No))
+prop0 :: Formula Leadership
+prop0 = Forall $
   Implies
-    (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
-    (RepeatNext False 5
+    (PropAtom Check (fromList []))
+    (RepeatNext False 100
       (Or
          [
-           PropAtom Success (fromList [PropConstraint "idx" (Var "i")])
+           PropAtom Yes (fromList [])
          ,
-           PropAtom Failure (fromList [PropConstraint "idx" (Var "i")])
+           PropAtom No (fromList [])
          ]
       )
     )
 
--- ∀i. ¬ (Success("idx" = i) ∨ Failure("idx" = i)) U˜ Start("idx" = i)
-prop2 :: Formula Ty
-prop2 = PropForall "i" $ Until
-  True
-  (Not $
-    Or
-      [
-        PropAtom Success (fromList [PropConstraint "idx" (Var "i")])
-      ,
-        PropAtom Failure (fromList [PropConstraint "idx" (Var "i")])
-      ]
-  )
-  (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
+-- ∀i. ☐ (Check("thread" = i) ⇒ ◯(10ms) (Yes("thread" = i) ∨ No("thread" = i)))
+prop1 :: Formula Leadership
+prop1 = PropForall "i" $ Forall $
+  Implies
+    (PropAtom Check (fromList [PropConstraint "thread" (Var "i")]))
+    (RepeatNext False 100
+      (Or
+         [
+           PropAtom Yes (fromList [PropConstraint "thread" (Var "i")])
+         ,
+           PropAtom No (fromList [PropConstraint "thread" (Var "i")])
+         ]
+      )
+    )
 
 main :: IO ()
 main = do
-  print (checkFormula mempty prop1)
-  print (satisfies prop1 log1Ok)
-  print (satisfies prop1 log2Ok)
-  print (satisfies prop1 log3Ok)
-  print (satisfies prop1 log4NotOk)
-  print (satisfies prop1 log5Ok)
-  print (satisfies prop1 log6NotOk)
-
-  print (satisfies prop2 log1Ok)
-  print (satisfies prop2 logEmpty)
-  print (satisfies prop2 log4NotOk)
-  print (satisfies prop2 log7)
-  print (satisfies prop2 log8)
+  events <- read "log.txt"
+  -- for_ events $ \e ->
+  --   print e
+  -- print (checkFormula mempty prop1)
+  putStrLn "------------------------"
+  print (satisfies prop0 events)
+  -- print (satisfies prop1 log2Ok)
+  -- print (satisfies prop1 log3Ok)
+  -- print (satisfies prop1 log4NotOk)
+  -- print (satisfies prop1 log5Ok)
+  -- print (satisfies prop1 log6NotOk)
+  --
+  -- print (satisfies prop2 log1Ok)
+  -- print (satisfies prop2 logEmpty)
+  -- print (satisfies prop2 log4NotOk)
+  -- print (satisfies prop2 log7)
+  -- print (satisfies prop2 log8)

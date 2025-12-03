@@ -22,12 +22,19 @@ library
                     , Cardano.LTL.Subst
                     , Cardano.LTL.Transform
 
+                    , Cardano.Trace.Feed
+
     other-modules:
     other-extensions:
 
     build-depends:    base
                     , containers
                     , text
+                    , trace-dispatcher ^>= 2.11
+                    , serialise
+                    , bytestring
+                    , time
+                    , aeson
 
     hs-source-dirs:   src
 
@@ -44,8 +51,11 @@ executable cardano-trace-ltl
     -- Other library packages from which modules are imported.
     build-depends:
         base
+      , text
       , containers
       , cardano-trace-ltl
+      , trace-dispatcher ^>= 2.11
+
 
     -- Directories containing source files.
     hs-source-dirs:   app
