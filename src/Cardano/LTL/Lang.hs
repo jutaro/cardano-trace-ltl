@@ -81,7 +81,7 @@ data Formula ty =
      -- | ∀x. φ
    | PropForall PropVarIdentifier (Formula ty)
      -- | i = v
-   | PropEq PropTerm PropValue deriving Show
+   | PropEq PropTerm PropValue deriving (Show, Eq)
    -------------------------------------
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):

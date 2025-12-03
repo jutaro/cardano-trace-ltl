@@ -3,6 +3,7 @@ module Cardano.LTL.Transform(
     step
   , end
   , Relevance(..)
+  , simplify
   ) where
 
 import           Cardano.LTL.Lang
@@ -75,3 +76,61 @@ end _ (PropAtom _ _)          = False
 end idxs (PropForall x phi)   = foldl' (\acc idx -> acc && end idxs (substFormula idx x phi)) True idxs
 end _ (PropEq (Const v) v')   = v == v'
 end _ (PropEq (Var x) _)      = error $ "Encountered a var: " <> unpack x
+
+simplify :: Eq ty => Formula ty -> Formula ty
+simplify (Forall phi) =
+  case simplify phi of
+    Top    -> Top
+    Bottom -> Bottom
+    phi    -> Forall phi
+simplify (Exists phi) =
+  case simplify phi of
+    Top    -> Top
+    Bottom -> Bottom
+    phi    -> Exists phi
+simplify (Next w phi) = Next w (simplify phi)
+simplify (RepeatNext w 0 phi) = simplify phi
+simplify (RepeatNext w k phi) = RepeatNext w k (simplify phi)
+simplify (Until w phi psi) =
+  case simplify psi of
+    Top    -> Top
+    Bottom -> simplify phi
+    psi    -> Until w (simplify phi) psi
+simplify (And phis) =
+  let phis' = filter (/= Top) (fmap simplify phis) in
+  case find (== Bottom) phis' of
+    Nothing ->
+      case phis' of
+        []    -> Top
+        [phi] -> phi
+        phis' -> And phis'
+    Just _ -> Bottom
+simplify (Or phis) =
+  let phis' = filter (/= Bottom) (fmap simplify phis) in
+  case find (== Top) phis' of
+    Nothing ->
+      case phis' of
+        []    -> Bottom
+        [phi] -> phi
+        phis' -> Or phis'
+    Just _ -> Top
+simplify (Implies a b) =
+  case (simplify a, simplify b) of
+    (Top, b)    -> b
+    (Bottom, b) -> Top
+    (_, Top)    -> Top
+    (a, Bottom) -> simplify (Not a)
+    (a, b)      -> Implies a b
+simplify (Not a) =
+  case simplify a of
+    Not a' -> a'
+    Top    -> Bottom
+    Bottom -> Top
+    a      -> Not a
+simplify Bottom = Bottom
+simplify Top = Bottom
+simplify (PropEq (Const v) v') | v == v' = Top
+simplify (PropEq (Const v) v') = Bottom
+simplify p@(PropEq _ _) = p
+simplify p@(PropAtom _ _) = p
+simplify (PropForall x phi) = PropForall x (simplify phi)
