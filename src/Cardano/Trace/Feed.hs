@@ -23,7 +23,7 @@ utcToMicroseconds :: UTCTime -> Word64
 utcToMicroseconds utcTime = round $ utcTimeToPOSIXSeconds utcTime * 1000000
 
 temporalEventLengthMicroseconds :: Word64
-temporalEventLengthMicroseconds = 100
+temporalEventLengthMicroseconds = 250
 
 -- | Event represents multiple trace messages spanning a range of time of length `temporalEventLengthMicroseconds`.
 type TemporalEvent = [TraceMessage]

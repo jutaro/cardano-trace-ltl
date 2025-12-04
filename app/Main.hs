@@ -1,106 +1,61 @@
-{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main(main) where
 
 import           Cardano.Logging.Types.TraceMessage (TraceMessage (..))
-import           Cardano.LTL.Check (checkFormula)
+import           Cardano.LTL.Check                  (checkFormula)
 import           Cardano.LTL.Lang
 import           Cardano.LTL.Satisfy
-import           Cardano.Trace.Feed (read)
+import           Cardano.Trace.Feed                 (read)
 
-import           Prelude hiding (read)
+import           Prelude                            hiding (read)
 import qualified Prelude
 
-import           Control.Monad (unless)
-import           Data.Foldable (for_)
-import           Data.List (find)
-import           Data.Map (singleton)
-import           Data.Maybe (isJust)
-import           Data.Set (fromList)
-import           Data.Text (unpack)
+import           Control.Monad                      (unless)
+import           Data.Foldable                      (for_)
+import           Data.List                          (find)
+import           Data.Map                           (singleton)
+import           Data.Maybe                         (isJust)
+import           Data.Set                           (fromList)
+import qualified Data.Set                           as Set
+import           Data.Text                          (unpack, Text)
+import GHC.Generics (Generic)
+import Data.Aeson
 
-type Identifier = Int
+data Leadership = Check | Yes | No deriving (Show, Eq, Ord)
 
-data Ty = Start | Success | Failure | Placeholder deriving (Show, Eq)
+data LeadershipProps = LeadershipProps { slot :: Int } deriving (Show, Generic)
 
-data Msg = Msg Ty Identifier deriving Show
+instance FromJSON LeadershipProps
 
-instance Event Msg Ty where
-  ty (Msg e _) = e
-  props (Msg _ i) = singleton "idx" (IntValue i)
+instance Finite Leadership where
+  elements = Set.fromList [Check, Yes, No]
 
-logEmpty :: [Msg]
-logEmpty = []
+findByTy :: [TraceMessage] -> Leadership -> Maybe TraceMessage
+findByTy msgs Check = find (\msg -> tmsgNS msg == "Forge.Loop.StartLeadershipCheck") msgs
+findByTy msgs No = find (\msg -> tmsgNS msg == "Forge.Loop.NodeNotLeader") msgs
+findByTy msgs Yes = find (\msg -> tmsgNS msg == "Forge.Loop.NodeIsLeader") msgs
 
-log1Ok :: [Msg]
-log1Ok = [Msg Start 2, Msg Placeholder (-1), Msg Success 2]
-
-log2Ok :: [Msg]
-log2Ok = [Msg Start 1, Msg Placeholder (-1), Msg Failure 1, Msg Placeholder 2]
-
-log3Ok :: [Msg]
-log3Ok = [Msg Placeholder 0]
-
-log4NotOk :: [Msg]
-log4NotOk = [Msg Start 2, Msg Placeholder 0]
-
-log5Ok :: [Msg]
-log5Ok = [ Msg Start 1
-         , Msg Placeholder (-1)
-         , Msg Failure 1
-         , Msg Placeholder 2
-         , Msg Start 4
-         , Msg Placeholder (-1)
-         , Msg Success 4
-         , Msg Placeholder 2
-         ]
-
-log6NotOk :: [Msg]
-log6NotOk = [ Msg Start 1
-            , Msg Placeholder (-1)
-            , Msg Failure 1
-            , Msg Placeholder 2
-            , Msg Start 4
-            , Msg Placeholder (-1)
-            , Msg Success 7
-            , Msg Placeholder 2
-            ]
-
-log7 :: [Msg]
-log7 =
-  [
-    Msg Success 1
-  , Msg Start 1
-  ]
-
-log8 :: [Msg]
-log8 =
-  [
-    Msg Success 1
-  ]
-
-data Leadership = Check | Yes | No | Irrelevant deriving (Show, Eq)
-
--- Forge.Loop.StartLeadershipCheck
--- Forge.Loop.NodeNotLeader
--- Forge.Loop.NodeIsLeader
 
 instance Event [TraceMessage] Leadership where
-  ty msgs =
-    if | isJust $ find (\msg -> tmsgNS msg == "Forge.Loop.StartLeadershipCheck") msgs -> Check
-       | isJust $ find (\msg -> tmsgNS msg == "Forge.Loop.NodeNotLeader") msgs        -> No
-       | isJust $ find (\msg -> tmsgNS msg == "Forge.Loop.NodeIsLeader") msgs         -> Yes
-       | otherwise                                                                    -> Irrelevant
-  props [] = mempty
-  props (msg : _) = singleton "thread" (IntValue (Prelude.read $ unpack $ tmsgThread msg))
+  ty msgs t = isJust $ findByTy msgs t
 
--- ☐ (Check ⇒ ◯(10ms) (Yes ∨ No))
+  props msgs t =
+    case findByTy msgs t of
+      Just x ->
+        case fromJSON (Object (tmsgData x)) of
+          Success (LeadershipProps slot) ->
+            singleton "slot" (IntValue slot)
+          Error err -> error (err <> " for " <> show (tmsgData x) <> " and " <> show t)
+      Nothing -> error "impossible"
+
+-- ☐ (Check ⇒ ◯(1ms) (Yes ∨ No))
 prop0 :: Formula Leadership
 prop0 = Forall $
   Implies
     (PropAtom Check (fromList []))
-    (RepeatNext False 100
+    (RepeatNext False 4
       (Or
          [
            PropAtom Yes (fromList [])
@@ -110,17 +65,17 @@ prop0 = Forall $
       )
     )
 
--- ∀i. ☐ (Check("thread" = i) ⇒ ◯(10ms) (Yes("thread" = i) ∨ No("thread" = i)))
+-- ☐ (∀i. Check("slot" = i) ⇒ ◯(1ms) (Yes("slot" = i) ∨ No("slot" = i)))
 prop1 :: Formula Leadership
-prop1 = PropForall "i" $ Forall $
+prop1 = Forall $ PropForall "i" $
   Implies
-    (PropAtom Check (fromList [PropConstraint "thread" (Var "i")]))
-    (RepeatNext False 100
+    (PropAtom Check (fromList [PropConstraint "slot" (Var "i")]))
+    (RepeatNext False 4
       (Or
          [
-           PropAtom Yes (fromList [PropConstraint "thread" (Var "i")])
+           PropAtom Yes (fromList [PropConstraint "slot" (Var "i")])
          ,
-           PropAtom No (fromList [PropConstraint "thread" (Var "i")])
+           PropAtom No (fromList [PropConstraint "slot" (Var "i")])
          ]
       )
     )
@@ -132,15 +87,4 @@ main = do
   --   print e
   -- print (checkFormula mempty prop1)
   putStrLn "------------------------"
-  print (satisfies prop0 events)
-  -- print (satisfies prop1 log2Ok)
-  -- print (satisfies prop1 log3Ok)
-  -- print (satisfies prop1 log4NotOk)
-  -- print (satisfies prop1 log5Ok)
-  -- print (satisfies prop1 log6NotOk)
-  --
-  -- print (satisfies prop2 log1Ok)
-  -- print (satisfies prop2 logEmpty)
-  -- print (satisfies prop2 log4NotOk)
-  -- print (satisfies prop2 log7)
-  -- print (satisfies prop2 log8)
+  print (satisfies prop1 events)

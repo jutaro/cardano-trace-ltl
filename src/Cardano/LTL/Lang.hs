@@ -7,10 +7,14 @@ module Cardano.LTL.Lang (
   , PropTerm(..)
   , PropConstraint(..)
   , Formula(..)
-  , Event(..)) where
+  , Finite(..)
+  , Event(..)
+  , allProps) where
 
+import qualified Data.Map        as Map
 import           Data.Map.Strict (Map)
-import           Data.Set        (Set)
+import           Data.Set        (Set, union)
+import qualified Data.Set        as Set
 import           Data.Text       (Text)
 
 -- | A property name (e.g. "thread", "node", etc.).
@@ -105,9 +109,15 @@ data Formula ty =
 -- {x = t} ⊔ c̄ ⊆ P ⇔ t = P(x) ∧ c̄ ⊆ P   if P(x) is defined
 --                   ⊥                  otherwise
 
+class Finite ty where
+  elements :: Set ty
+
 -- | A type `a` is a (temporal) `Event` if:
 -- |  — it has a type `ty` (shall be isomorphic to a finite set)
 -- |  — it has a set of key-value pairs `props` of integer or string properties
-class Event a ty | a -> ty where
-  ty :: a -> ty
-  props :: a -> Map Text PropValue
+class Finite ty => Event a ty | a -> ty where
+  ty :: a -> ty -> Bool
+  props :: a -> ty -> Map Text PropValue
+
+allProps :: Event a ty => a -> Set PropValue
+allProps x = foldl' (\set t -> (if ty x t then Set.fromList (Map.elems (props x t)) else mempty) `union` set) mempty elements

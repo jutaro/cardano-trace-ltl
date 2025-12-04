@@ -48,9 +48,9 @@ step (Implies phi psi) s = Implies <$> step phi s <*> step psi s
 step (Not phi) s = Not <$> step phi s
 step Bottom _ = irrelevant Bottom
 step Top _ = irrelevant Top
-step (PropAtom c is) s | ty s == c =
+step (PropAtom c is) s | ty s c =
   relevant $ And $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
-    case lookup key (props s) of
+    case lookup key (props s c) of
       Just v  -> PropEq t v
       -- NOTE: Shall we have a config option for either crashing hard or returning ⊥ in case there is no such key?
       Nothing -> Bottom
@@ -133,4 +133,9 @@ simplify (PropEq (Const v) v') | v == v' = Top
 simplify (PropEq (Const v) v') = Bottom
 simplify p@(PropEq _ _) = p
 simplify p@(PropAtom _ _) = p
-simplify (PropForall x phi) = PropForall x (simplify phi)
+simplify (PropForall x phi) =
+  case simplify phi of
+    Top    -> Top
+    Bottom -> Bottom
+    phi    -> PropForall x phi
+

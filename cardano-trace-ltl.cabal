@@ -21,6 +21,7 @@ library
                     , Cardano.LTL.Satisfy
                     , Cardano.LTL.Subst
                     , Cardano.LTL.Transform
+                    , Cardano.Data.Strict
 
                     , Cardano.Trace.Feed
 
@@ -55,6 +56,7 @@ executable cardano-trace-ltl
       , containers
       , cardano-trace-ltl
       , trace-dispatcher ^>= 2.11
+      , aeson
 
 
     -- Directories containing source files.

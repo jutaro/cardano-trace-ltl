@@ -58,4 +58,4 @@ prettyFormula Top lvl = surround lvl O "⊤"
 prettyFormula Bottom lvl = surround lvl O "⊥"
 prettyFormula (PropForall x phi) lvl = surround lvl Z $ "∀" <> x <> ". " <> prettyFormula phi Z
 prettyFormula (PropAtom c is) lvl = surround lvl O $ pack (show c) <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
-prettyFormula (PropEq t v) lvl = surround lvl Z $ prettyPropTerm t <> " = " <> pack (show v)
+prettyFormula (PropEq t v) lvl = surround lvl Z $ prettyPropTerm t <> " = " <> prettyPropValue v
