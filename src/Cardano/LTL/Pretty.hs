@@ -8,10 +8,10 @@ module Cardano.LTL.Pretty (
   , prettyPropConstraints
   , prettyFormula) where
 
-import           Cardano.LTL.Lang
-import           Data.List        (foldl')
-import qualified Data.Set         as Set
-import           Data.Text        (Text, intercalate, pack)
+import           Cardano.LTL.Lang.Formula
+import           Data.List           (foldl')
+import qualified Data.Set            as Set
+import           Data.Text           (Text, intercalate, pack)
 
 data Lvl = Z | O deriving (Show, Eq, Ord)
 
@@ -49,7 +49,7 @@ prettyFormula (Forall phi) lvl = surround lvl Z $ "☐ " <> prettyFormula phi O
 prettyFormula (Exists phi) lvl = surround lvl Z $ "♢ " <> prettyFormula phi O
 prettyFormula (Next w phi) lvl = surround lvl Z $ weak w "◯" <> " " <> prettyFormula phi O
 prettyFormula (RepeatNext w k phi) lvl = surround lvl Z $ weak w "◯" <> "(" <> pack (show k) <> ") " <> prettyFormula phi O
-prettyFormula (Until w phi psi) lvl = surround lvl Z $ prettyFormula phi O <> " " <> weak w "U" <> " " <> prettyFormula psi O
+prettyFormula (Until w phi psi) lvl = surround lvl Z $ prettyFormula phi O <> " " <> weak w "|" <> " " <> prettyFormula psi O
 prettyFormula (Implies phi psi) lvl = surround lvl Z $ prettyFormula phi O <> " " <> "⇒" <> " " <> prettyFormula psi O
 prettyFormula (Or phis) lvl = surround lvl Z $ "(∨)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)
 prettyFormula (And phis) lvl = surround lvl Z $ "(∧)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)

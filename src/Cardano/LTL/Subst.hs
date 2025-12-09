@@ -4,9 +4,9 @@ module Cardano.LTL.Subst (
   , substFormula
   ) where
 
-import           Cardano.LTL.Lang
-import qualified Data.Set         as Set
-import           Data.Text        (Text)
+import           Cardano.LTL.Lang.Formula
+import qualified Data.Set                 as Set
+import           Data.Text                (Text)
 
 -- | t[v / x]
 substPropTerm :: PropValue -> Text -> PropTerm -> PropTerm

@@ -3,81 +3,85 @@
 
 module Main(main) where
 
-import           Cardano.LTL.Check   (Error (..), checkFormula)
-import           Cardano.LTL.Lang
-import           Cardano.LTL.Pretty  (Lvl (Z), prettyFormula)
-import           Cardano.LTL.Satisfy (SatisfactionResult (..), satisfies)
-import           Data.Map            (singleton)
-import           Data.Set            (fromList)
-import           Data.Text           (unpack)
+import           Cardano.LTL.Check        (Error (..), checkFormula)
+import           Cardano.LTL.Lang.Formula
+import           Cardano.LTL.Pretty       (Lvl (Z), prettyFormula)
+import           Cardano.LTL.Satisfy      (SatisfactionResult (..), satisfies)
+import           Data.Map                 (singleton)
+import           Data.Set                 (fromList)
+import           Data.Text                (unpack)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
 type Identifier = Int
 
-data Ty = Start | Success | Failure | Placeholder deriving (Show, Eq)
+data Ty = Start | Success | Failure deriving (Show, Eq, Ord)
 
-data Msg = Msg Ty Identifier deriving (Show, Eq)
+data Msg = Msg Ty Identifier | Placeholder deriving (Show, Eq, Ord)
+
+instance Finite Ty where
+  elements = fromList [Start, Success, Failure]
 
 instance Event Msg Ty where
-  ty (Msg e _) = e
-  props (Msg _ i) = singleton "idx" (IntValue i)
+  ty (Msg t _) t'  = t == t'
+  ty Placeholder _ = False
+  props (Msg _ i) _ = singleton "idx" (IntValue i)
 
 log1 :: [Msg]
-log1 = [Msg Start 2, Msg Placeholder (-1), Msg Success 2]
+log1 = [Msg Start 2, Placeholder, Msg Success 2]
 
 log2 :: [Msg]
-log2 = [Msg Start 1, Msg Placeholder (-1), Msg Failure 1, Msg Placeholder 2]
+log2 = [Msg Start 1, Placeholder, Msg Failure 1, Placeholder]
 
 log3 :: [Msg]
-log3 = [Msg Placeholder 0]
+log3 = [Placeholder]
 
 log4 :: [Msg]
-log4 = [Msg Start 2, Msg Placeholder 0]
+log4 = [Msg Start 2, Placeholder]
 
 log5 :: [Msg]
 log5 = [ Msg Start 1
-       , Msg Placeholder (-1)
+       , Placeholder
        , Msg Failure 1
-       , Msg Placeholder 2
+       , Placeholder
        , Msg Start 4
-       , Msg Placeholder (-1)
+       , Placeholder
        , Msg Success 4
-       , Msg Placeholder 2
+       , Placeholder
        ]
 
 log6 :: [Msg]
 log6 = [ Msg Start 1
-       , Msg Placeholder (-1)
+       , Placeholder
        , Msg Failure 1
-       , Msg Placeholder 2
+       , Placeholder
        , Msg Start 4
-       , Msg Placeholder (-1)
+       , Placeholder
        , Msg Success 7
-       , Msg Placeholder 2
+       , Placeholder
        ]
 
 log7 :: [Msg]
-log7 = [Msg Start 2, Msg Placeholder 0, Msg Placeholder 0, Msg Failure 2]
+log7 = [Msg Start 2, Placeholder, Placeholder, Msg Failure 2]
 
 log8 :: [Msg]
 log8 =
   [
-    Msg Placeholder 0
+    Placeholder
   , Msg Success 1
-  , Msg Placeholder 0
+  , Placeholder
   , Msg Start 1
-  , Msg Placeholder 0
-  , Msg Placeholder 0
+  , Placeholder
+  , Placeholder
   ]
 
 log9 :: [Msg]
 log9 =
   [
-    Msg Placeholder 0
+    Placeholder
   , Msg Success 1
-  , Msg Placeholder 0
-  , Msg Placeholder 0
+  , Placeholder
+  , Placeholder
   ]
 
 log10 :: [Msg]

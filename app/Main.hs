@@ -5,7 +5,7 @@ module Main(main) where
 
 import           Cardano.Logging.Types.TraceMessage (TraceMessage (..))
 import           Cardano.LTL.Check                  (checkFormula)
-import           Cardano.LTL.Lang
+import           Cardano.LTL.Lang.Formula
 import           Cardano.LTL.Satisfy
 import           Cardano.Trace.Feed                 (read)
 
@@ -13,15 +13,15 @@ import           Prelude                            hiding (read)
 import qualified Prelude
 
 import           Control.Monad                      (unless)
+import           Data.Aeson
 import           Data.Foldable                      (for_)
 import           Data.List                          (find)
 import           Data.Map                           (singleton)
 import           Data.Maybe                         (isJust)
 import           Data.Set                           (fromList)
 import qualified Data.Set                           as Set
-import           Data.Text                          (unpack, Text)
-import GHC.Generics (Generic)
-import Data.Aeson
+import           Data.Text                          (Text, unpack)
+import           GHC.Generics                       (Generic)
 
 data Leadership = Check | Yes | No deriving (Show, Eq, Ord)
 
@@ -50,21 +50,6 @@ instance Event [TraceMessage] Leadership where
           Error err -> error (err <> " for " <> show (tmsgData x) <> " and " <> show t)
       Nothing -> error "impossible"
 
--- ☐ (Check ⇒ ◯(1ms) (Yes ∨ No))
-prop0 :: Formula Leadership
-prop0 = Forall $
-  Implies
-    (PropAtom Check (fromList []))
-    (RepeatNext False 4
-      (Or
-         [
-           PropAtom Yes (fromList [])
-         ,
-           PropAtom No (fromList [])
-         ]
-      )
-    )
-
 -- ☐ (∀i. Check("slot" = i) ⇒ ◯(1ms) (Yes("slot" = i) ∨ No("slot" = i)))
 prop1 :: Formula Leadership
 prop1 = Forall $ PropForall "i" $
@@ -80,11 +65,26 @@ prop1 = Forall $ PropForall "i" $
       )
     )
 
+-- ∀i. ¬ (Success("slot" = i) ∨ Failure("slot" = i)) U˜ Start("slot" = i)
+prop2 :: Formula Leadership
+prop2 = PropForall "i" $ Until
+  True
+  (Not $
+    Or
+      [
+        PropAtom Yes (fromList [PropConstraint "slot" (Var "i")])
+      ,
+        PropAtom No (fromList [PropConstraint "slot" (Var "i")])
+      ]
+  )
+  (PropAtom Check (fromList [PropConstraint "slot" (Var "i")]))
+
 main :: IO ()
 main = do
-  events <- read "log.txt"
+  events <- read "log-small.txt"
   -- for_ events $ \e ->
   --   print e
   -- print (checkFormula mempty prop1)
   putStrLn "------------------------"
-  print (satisfies prop1 events)
+  -- print (satisfies prop1 events)
+  print (satisfies prop2 events)
