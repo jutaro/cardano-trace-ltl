@@ -50,9 +50,34 @@ library
     default-language: GHC2021
     default-extensions: Strict
 
+executable cardano-trace-ltl-demo
+    import:           warnings
+    main-is:          Demo.hs
+
+    other-modules:
+    other-extensions:
+
+    -- Other library packages from which modules are imported.
+    build-depends:
+        base
+      , text
+      , containers
+      , cardano-trace-ltl
+      , trace-dispatcher ^>= 2.11
+      , aeson
+
+
+    -- Directories containing source files.
+    hs-source-dirs:   demo
+
+    -- Base language which the package is written in.
+    default-language: GHC2021
+
+    default-extensions: Strict
+
 executable cardano-trace-ltl
     import:           warnings
-    main-is:          Main.hs
+    main-is:          App.hs
 
     other-modules:
     other-extensions:
