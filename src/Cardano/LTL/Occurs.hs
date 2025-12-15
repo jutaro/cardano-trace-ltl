@@ -6,16 +6,18 @@ module Cardano.LTL.Occurs (
 
 import           Cardano.LTL.Lang.Formula
 import qualified Data.Set                 as Set
-import           Data.Text                (Text)
 
-occursPropTerm :: Text -> PropTerm -> Bool
+-- | Check if the `PropVarIdentifier` occurs freely in the `PropTerm`.
+occursPropTerm :: PropVarIdentifier -> PropTerm -> Bool
 occursPropTerm _ (Const _) = False
 occursPropTerm x (Var x')  = x == x'
 
-occursPropConstraint :: Text -> PropConstraint -> Bool
+-- | Check if the `PropVarIdentifier` occurs freely in the `PropConstraint`.
+occursPropConstraint :: PropVarIdentifier -> PropConstraint -> Bool
 occursPropConstraint x (PropConstraint _ t) = occursPropTerm x t
 
-occursFormula :: Text -> Formula a -> Bool
+-- | Check if the `PropVarIdentifier` occurs freely in the `Formula`.
+occursFormula :: PropVarIdentifier -> Formula a -> Bool
 occursFormula x (Forall phi) = occursFormula x phi
 occursFormula x (Exists phi) = occursFormula x phi
 occursFormula x (Next w phi) = occursFormula x phi

@@ -1,5 +1,5 @@
-{-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Main(main) where
 
@@ -12,6 +12,8 @@ import           Cardano.Trace.Feed                 (read)
 import           Prelude                            hiding (read)
 import qualified Prelude
 
+import           Cardano.Trace.Feed                 (Filename,
+                                                     TemporalEventDurationMicrosec)
 import           Control.Monad                      (unless)
 import           Data.Aeson
 import           Data.Foldable                      (for_)
@@ -22,6 +24,9 @@ import           Data.Set                           (fromList)
 import qualified Data.Set                           as Set
 import           Data.Text                          (Text, unpack)
 import           GHC.Generics                       (Generic)
+import           System.Environment                 (getArgs)
+import           System.Exit                        (die)
+import           Text.Read                          (readMaybe)
 
 data Leadership = Check | Yes | No deriving (Show, Eq, Ord)
 
@@ -79,9 +84,14 @@ prop2 = PropForall "i" $ Until
   )
   (PropAtom Check (fromList [PropConstraint "slot" (Var "i")]))
 
+readArgs :: [String] -> IO (Filename, TemporalEventDurationMicrosec)
+readArgs [x, readMaybe -> Just dur] = pure (x, dur)
+readArgs _                          = die "Usage: $ <filename> <duration>"
+
 main :: IO ()
 main = do
-  events <- read "log-small.txt"
+  (!filename, !dur) <- getArgs >>= readArgs
+  events <- read filename dur
   -- for_ events $ \e ->
   --   print e
   -- print (checkFormula mempty prop1)

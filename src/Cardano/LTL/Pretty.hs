@@ -43,7 +43,7 @@ prettyPropConstraint (PropConstraint k v) = pack (show k) <> " = " <> prettyProp
 prettyPropConstraints :: [PropConstraint] -> Text
 prettyPropConstraints = intercalate ", " . fmap prettyPropConstraint
 
--- | Pretty-print a full formula using unicode operators.
+-- | Pretty-print a `Formula` using unicode operators.
 prettyFormula :: Show a => Formula a -> Lvl -> Text
 prettyFormula (Forall phi) lvl = surround lvl Z $ "☐ " <> prettyFormula phi O
 prettyFormula (Exists phi) lvl = surround lvl Z $ "♢ " <> prettyFormula phi O

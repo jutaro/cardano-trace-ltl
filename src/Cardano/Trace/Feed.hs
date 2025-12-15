@@ -1,4 +1,4 @@
-module Cardano.Trace.Feed(Filename, TemporalEvent, temporalEventLengthMicroseconds, read) where
+module Cardano.Trace.Feed(Filename, TemporalEvent, TemporalEventDurationMicrosec, read) where
 
 import           Cardano.Logging.Types.TraceMessage
 
@@ -22,35 +22,38 @@ type Filename = String
 utcToMicroseconds :: UTCTime -> Word64
 utcToMicroseconds utcTime = round $ utcTimeToPOSIXSeconds utcTime * 1000000
 
-temporalEventLengthMicroseconds :: Word64
-temporalEventLengthMicroseconds = 250
-
--- | Event represents multiple trace messages spanning a range of time of length `temporalEventLengthMicroseconds`.
+-- | Temporal event represents multiple trace messages spanning some duration of time.
 type TemporalEvent = [TraceMessage]
+
+-- | For performance considerations we group trace messages within the specified duration in one `TemporalEvent`.
+type TemporalEventDurationMicrosec = Word64
 
 -- | Fill in one temporal event.
 --   Returns the event, the starting time boundary of the next temporal event and the rest of the messages.
-fill :: [TraceMessage] -> Word64 -> [TraceMessage] -> (TemporalEvent, Word64, [TraceMessage])
-fill acc t (x : xs) | utcToMicroseconds (tmsgAt x) <= t + temporalEventLengthMicroseconds = fill (x : acc) t xs
-fill acc t rest = (reverse acc, t + temporalEventLengthMicroseconds, rest)
+fill :: TemporalEventDurationMicrosec -> [TraceMessage] -> Word64 -> [TraceMessage] -> (TemporalEvent, Word64, [TraceMessage])
+fill duration acc t (x : xs) | utcToMicroseconds (tmsgAt x) <= t + duration = fill duration (x : acc) t xs
+fill duration acc t rest = (reverse acc, t + duration, rest)
 
 -- | Slice up the trace messages into consequtive temporal events.
-slice :: [TraceMessage] -> [TemporalEvent]
-slice [] = []
-slice msg@(x : _) = go (utcToMicroseconds (tmsgAt x)) msg where
+slice :: TemporalEventDurationMicrosec -> [TraceMessage] -> [TemporalEvent]
+slice duration [] = []
+slice duration msg@(x : _) = go (utcToMicroseconds (tmsgAt x)) msg where
   go :: Word64 -> [TraceMessage] -> [TemporalEvent]
   go t [] = []
   go t msg =
-    let !(e, !t', !msg') = fill [] t msg in
+    let !(e, !t', !msg') = fill duration [] t msg in
     e : go t' msg'
 
 -- | We assume its possible for the trace messages to come out of order. Remedy that here.
 sortByTimestamp :: [TraceMessage] -> [TraceMessage]
 sortByTimestamp = sortBy (\x y -> tmsgAt x `compare` tmsgAt y)
 
-read :: Filename -> IO [TemporalEvent]
-read filename = do
+-- | Read a text file where every line is a json object representation of a `TraceMessage`.
+--   Trace messages lying within the specified `TemporalEventDurationMicrosec` are grouped in on `TemporalEvent`.
+--   The trace messages are sorted by timestamp before any action.
+read :: Filename -> TemporalEventDurationMicrosec -> IO [TemporalEvent]
+read filename duration = do
   traces <- B.lines <$> B.readFile filename
   msgs <- sortByTimestamp <$> traverse throwDecode traces
-  let events = slice msgs
+  let events = slice duration msgs
   pure events

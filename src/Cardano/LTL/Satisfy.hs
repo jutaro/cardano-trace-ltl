@@ -21,8 +21,6 @@ import           Data.Text                                    (Text, unpack)
 import           Debug.Trace                                  (trace, traceShow)
 
 
-#define TRACE
-
 -- | The result of checking satisfaction of a formula against a timeline.
 -- | If unsatisfied, stores points in the timeline "relevant" to the formula.
 data SatisfactionResult m = Satisfied | Unsatisfied [m] deriving (Show, Eq)
@@ -58,4 +56,7 @@ satisfies formula xs = toResult $ foldl' (apply (length xs)) (Triple 0 [] formul
     Triple (n + 1) (if r then m : acc else acc) formula6
 
   toResult :: (Ord a, Show a) => Triple Int [m] (Formula a) -> SatisfactionResult m
-  toResult (Triple _ acc formula) = if Top == traceFormula "end:" ((simplify . toFormula . simplifyFragment . toGuardedFormula . terminate) formula) then Satisfied else Unsatisfied (reverse acc)
+  toResult (Triple _ acc formula) =
+    if Top == traceFormula "end:" ((simplify . toFormula . simplifyFragment . toGuardedFormula . terminate) formula)
+    then Satisfied
+    else Unsatisfied (reverse acc)
