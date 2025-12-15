@@ -117,7 +117,7 @@ class Finite ty where
 -- | A type `a` is a (temporal) `Event` of a finite type `ty` if:
 -- |  — It specifies which types are included in the event (ty -> Bool or 𝒫(ty)).
 -- |  — For every `ty` included in the event it has a set of key-value pairs `props` of integer or string properties for that `ty`.
-class Finite ty => Event a ty | a -> ty where
+class Finite ty => Event a ty | ty -> a where
   -- | Check whether the event is of the given type.
   ty :: a -> ty -> Bool
   -- | Assuming the event is of the given type, get all properties of that type.
