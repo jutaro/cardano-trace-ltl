@@ -31,5 +31,5 @@ occursFormula _ Bottom = False
 occursFormula _ Top = False
 occursFormula x (PropForall x' _) | x == x' = False
 occursFormula x (PropForall _ phi) = occursFormula x phi
-occursFormula x (PropAtom c is) = foldl' (\acc phi -> acc || occursPropConstraint x phi) False is
-occursFormula x (PropEq t _) = occursPropTerm x t
+occursFormula x (PropAtom _ is) = foldl' (\acc phi -> acc || occursPropConstraint x phi) False is
+occursFormula x (PropEq _ t _) = occursPropTerm x t

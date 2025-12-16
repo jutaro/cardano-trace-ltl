@@ -1,0 +1,41 @@
+// For every "discrete" time instant, for every property `i`, if leadership check happens at that instant at slot `i` then
+// within the next 1ms either node must be a leader at slot `i` or node must not be a leader at slot `i`.
+☐ (∀i. StartLeadershipCheck("slot" = i) ⇒ ◯(1ms) (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)))
+
+// For every property `i`, neither node must be a leader at slot `i` nor node must not be a leader at slot `i`,
+// until leadership check has happened at slot `i`.
+∀i. ¬ (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)) |˜ StartLeadershipCheck("slot" = i)
+
+// For every "discrete" time instant, for every property `i`, if a block is forged at slot `i`, then
+// there must exist a time instant in the future at which a block is forged at slot `i`.
+☐ (∀i. ForgedBlock("slot" = i) ⇒ ♢ AdoptedBlock("slot" = i))
+
+Temporal glossary:
+☐ φ means "for all discrete time instants φ must hold"
+
+...     now          next      next-next  next-next-next     ...
+
+... ---- φ ---------- φ ---------- φ ---------- φ ---------- ...
+
+♢ φ means "at some discrete time instant φ must hold"
+
+...     now          next      next-next  next-next-next     ...
+
+... ---- φ ------------------------------------------------- ...
+
+or
+
+...     now          next      next-next  next-next-next     ...
+
+... ----------------- φ ------------------------------------ ...
+
+or
+
+...     now          next      next-next  next-next-next     ...
+
+... ------------------------------------------- φ ---------- ...
+
+...
+
+◯(k) means "at some discrete time instant within the next k time instants φ must hold"
+φ | ψ means "φ must hold for all time instants until ψ holds"

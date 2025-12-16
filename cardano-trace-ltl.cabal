@@ -75,31 +75,6 @@ executable cardano-trace-ltl-demo
 
     default-extensions: Strict
 
-executable cardano-trace-ltl
-    import:           warnings
-    main-is:          App.hs
-
-    other-modules:
-    other-extensions:
-
-    -- Other library packages from which modules are imported.
-    build-depends:
-        base
-      , text
-      , containers
-      , cardano-trace-ltl
-      , trace-dispatcher ^>= 2.11
-      , aeson
-
-
-    -- Directories containing source files.
-    hs-source-dirs:   app
-
-    -- Base language which the package is written in.
-    default-language: GHC2021
-
-    default-extensions: Strict
-
 test-suite cardano-trace-ltl-test
   type: exitcode-stdio-1.0
   hs-source-dirs: test

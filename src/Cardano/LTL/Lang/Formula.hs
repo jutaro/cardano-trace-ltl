@@ -7,7 +7,7 @@ module Cardano.LTL.Lang.Formula (
   , PropTerm(..)
   , PropConstraint(..)
   , Formula(..)
-  , Finite(..)
+  , relevant
   , Event(..)) where
 
 import qualified Data.Map        as Map
@@ -18,6 +18,9 @@ import           Data.Text       (Text)
 
 -- | A property name (e.g. "thread", "node", etc.).
 type PropName = Text
+
+-- | An event index.
+type EventIndex = Int
 
 -- | Default name: x.
 -- | Identifier denoting an event property variable.
@@ -44,7 +47,6 @@ data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 
 -- | Default name: φ.
 -- | A type of Linear Temporal Logic formulas over a base type ty.
--- | The base type is assumed to be a finite set (up to isomorphism).
 data Formula ty =
    ------------ Temporal -------------
      -- | ☐ φ
@@ -84,9 +86,28 @@ data Formula ty =
      -- | ∀x. φ
    | PropForall PropVarIdentifier (Formula ty)
      -- | i = v
-   | PropEq PropTerm PropValue deriving (Show, Eq, Ord)
-   -- i = 0 ⇒ i = 0 ∧ i = 0
+   | PropEq (Set EventIndex) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
+
+
+-- | Compute the set of indices of relevant events.
+relevant :: Formula ty -> Set EventIndex
+relevant = go mempty where
+  go :: Set EventIndex -> Formula ty -> Set EventIndex
+  go acc (Forall phi) = go acc phi
+  go acc (Exists phi) = go acc phi
+  go acc (Next _ phi) = go acc phi
+  go acc (RepeatNext _ _ phi) = go acc phi
+  go acc (Until _ phi psi) = go (go acc phi) psi
+  go acc (Or phis) = foldl' go acc phis
+  go acc (And phis) = foldl' go acc phis
+  go acc (Not phi) = go acc phi
+  go acc (Implies phi psi) = go (go acc phi) psi
+  go acc Top = acc
+  go acc Bottom = acc
+  go acc (PropAtom {}) = acc
+  go acc (PropForall _ phi) = go acc phi
+  go acc (PropEq rel _ _) = rel `union` acc
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
 -- (t̄ ⊧ ∀x. φ) ⇔ (∀x. (t̄ ⊧ φ))
@@ -109,16 +130,11 @@ data Formula ty =
 -- {x = t} ⊔ c̄ ⊆ P ⇔ t = P(x) ∧ c̄ ⊆ P   if P(x) is defined
 --                   ⊥                  otherwise
 
--- | `ty` is a finite set.
-class Finite ty where
-  -- | All elements of the set.
-  elements :: Set ty
-
--- | A type `a` is a (temporal) `Event` of a finite type `ty` if:
--- |  — It specifies which types are included in the event (ty -> Bool or 𝒫(ty)).
--- |  — For every `ty` included in the event it has a set of key-value pairs `props` of integer or string properties for that `ty`.
-class Finite ty => Event a ty | ty -> a where
-  -- | Check whether the event is of the given type.
-  ty :: a -> ty -> Bool
-  -- | Assuming the event is of the given type, get all properties of that type.
-  props :: a -> ty -> Map Text PropValue
+-- | A constraint signifying that `a` is an `Event` over base `ty`:
+--    — Given an element of `ty`, `ofTy` shall name whether the event is of the given type.
+--    — Every event must have a distinct index (witnessed by `index`).
+--    — Every event of type `ty` (i.e. `ofTy event = True`) must have a key-value set of properties.
+class Event a ty | a -> ty where
+  ofTy :: a -> ty -> Bool
+  index :: a -> Int
+  props :: a -> ty -> Map PropVarIdentifier PropValue

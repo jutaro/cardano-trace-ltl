@@ -29,7 +29,7 @@ data HomogeneousFormula ty =
 
    ----------- Event property ----------
    | PropForall PropVarIdentifier (HomogeneousFormula ty)
-   | PropEq PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropEq (Set Int) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 toGuardedFormula :: HomogeneousFormula ty -> GuardedFormula ty
@@ -40,7 +40,7 @@ toGuardedFormula (Not a)            = G.Not (toGuardedFormula a)
 toGuardedFormula Bottom             = G.Bottom
 toGuardedFormula Top                = G.Top
 toGuardedFormula (PropForall x phi) = G.PropForall x (toGuardedFormula phi)
-toGuardedFormula (PropEq a b)       = G.PropEq a b
+toGuardedFormula (PropEq e a b)     = G.PropEq e a b
 
 toFormula :: HomogeneousFormula ty -> Formula ty
 toFormula (And phis)         = F.And (fmap toFormula phis)
@@ -50,4 +50,4 @@ toFormula (Not a)            = F.Not (toFormula a)
 toFormula Bottom             = F.Bottom
 toFormula Top                = F.Top
 toFormula (PropForall x phi) = F.PropForall x (toFormula phi)
-toFormula (PropEq a b)       = F.PropEq a b
+toFormula (PropEq e a b)     = F.PropEq e a b

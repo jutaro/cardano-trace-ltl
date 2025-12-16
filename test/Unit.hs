@@ -19,12 +19,13 @@ data Ty = Start | Success | Failure deriving (Show, Eq, Ord)
 
 data Msg = Msg Ty Identifier | Placeholder deriving (Show, Eq, Ord)
 
-instance Finite Ty where
-  elements = fromList [Start, Success, Failure]
-
 instance Event Msg Ty where
-  ty (Msg t _) t'  = t == t'
-  ty Placeholder _ = False
+  ofTy (Msg t _) t'  = t == t'
+  ofTy Placeholder _ = False
+
+  index (Msg _ i) = i
+  index Placeholder = -1
+
   props (Msg _ i) _ = singleton "idx" (IntValue i)
 
 log1 :: [Msg]
@@ -164,14 +165,24 @@ prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
   , testCase (show log3 <> " satisfies the formula") $
       satisfies prop1 log3 @?= Satisfied
   , testCase (show log4 <> " does not satisfy the formula") $
-      satisfies prop1 log4 @?= Unsatisfied [Msg Start 2]
+      satisfies prop1 log4 @?= Unsatisfied
+        (PropForall "i" (Not (PropEq (fromList [2]) (Var "i") (IntValue 2))))
+        (fromList [2])
   , testCase (show log5 <> " satisfies the formula") $
       satisfies prop1 log5 @?= Satisfied
   , testCase (show log6 <> " satisfies the formula") $
       satisfies prop1 log6 @?= Unsatisfied
-        [Msg Start 1, Msg Failure 1, Msg Start 4, Msg Success 7]
+        (PropForall "i"
+          (Implies
+            (PropEq (fromList [4]) (Var "i") (IntValue 4))
+            (PropEq (fromList [7]) (Var "i") (IntValue 7))
+          )
+        )
+        (fromList [4,7])
   , testCase (show log7 <> " does not satisfy the formula") $
-      satisfies prop1 log7 @?= Unsatisfied [Msg Start 2, Msg Failure 2]
+      satisfies prop1 log7 @?= Unsatisfied
+        (PropForall "i" (Not (PropEq (fromList [2]) (Var "i") (IntValue 2))))
+        (fromList [2])
   ]
 
 prop2SatisfiabilityTests :: TestTree
@@ -184,12 +195,24 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
   , testCase (show logEmpty <> " satisfies the formula") $
       satisfies prop2 logEmpty @?= Satisfied
   , testCase (show log8 <> "does not satisfy the formula") $
-      satisfies prop2 log8 @?= Unsatisfied [Msg Success 1, Msg Start 1]
+      satisfies prop2 log8 @?= Unsatisfied
+        (PropForall "i" (Not (PropEq (fromList [1]) (Var "i") (IntValue 1))))
+        (fromList [1])
   , testCase (show log9 <> " does not satisfy the formula") $
-      satisfies prop2 log9 @?= Unsatisfied [Msg Success 1]
+      satisfies prop2 log9 @?= Unsatisfied
+        (PropForall "i" (Not (PropEq (fromList [1]) (Var "i") (IntValue 1))))
+        (fromList [1])
   , testCase (show log10 <> " satisfies the formula") $
       satisfies prop2 log10 @?= Satisfied
   , testCase (show log11 <> " does not satisfy the formula") $
       satisfies prop2 log11 @?= Unsatisfied
-        [Msg Start 1, Msg Success 1, Msg Start 1, Msg Success 2]
+        (PropForall "i"
+          (Or
+            [ PropEq (fromList [1]) (Var "i") (IntValue 1)
+            , And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1))
+            , Or [PropEq (fromList [1]) (Var "i") (IntValue 1),Not (PropEq (fromList [2]) (Var "i") (IntValue 2))]]
+            ]
+          )
+        )
+        (fromList [1,2])
   ]

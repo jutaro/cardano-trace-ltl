@@ -3,6 +3,7 @@
 module Cardano.LTL.Pretty (
     Lvl(..)
   , prettyPropValue
+  , prettyPropKeyValueList
   , prettyPropTerm
   , prettyPropConstraint
   , prettyPropConstraints
@@ -29,6 +30,10 @@ weak False x = x
 prettyPropValue :: PropValue -> Text
 prettyPropValue (IntValue i)  = pack (show i)
 prettyPropValue (TextValue x) = x
+
+prettyPropKeyValueList :: [(PropName, PropValue)] -> Text
+prettyPropKeyValueList = intercalate "\n" . fmap go where
+  go (n, v) = pack (show n) <> " = " <> prettyPropValue v
 
 -- | Render a property term.
 prettyPropTerm :: PropTerm -> Text
@@ -58,4 +63,4 @@ prettyFormula Top lvl = surround lvl O "⊤"
 prettyFormula Bottom lvl = surround lvl O "⊥"
 prettyFormula (PropForall x phi) lvl = surround lvl Z $ "∀" <> x <> ". " <> prettyFormula phi Z
 prettyFormula (PropAtom c is) lvl = surround lvl O $ pack (show c) <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
-prettyFormula (PropEq t v) lvl = surround lvl Z $ prettyPropTerm t <> " = " <> prettyPropValue v
+prettyFormula (PropEq _ t v) lvl = surround lvl Z $ prettyPropTerm t <> " = " <> prettyPropValue v

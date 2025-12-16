@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE CPP    #-}
 module Cardano.LTL.Transform(
     step
   , end
-  , Relevance(..)
   , simplify
   , simplifyNext
   , simplifyFragment
@@ -26,49 +26,34 @@ import qualified Data.Set                                     as Set
 import           Data.Text                                    (unpack)
 import           Prelude                                      hiding (lookup)
 
--- | Applicative-functor of relevance tracking. Product is relevant if either of the constituents is.
-data Relevance a = Relevant Bool a
-
-instance Functor Relevance where
-  fmap f (Relevant t x) = Relevant t (f x)
-
-instance Applicative Relevance where
-  pure = Relevant False
-  Relevant b f <*> Relevant b' x = Relevant (b || b') (f x)
-
--- | Tag a computation as irrelevant to the current step.
-irrelevant :: a -> Relevance a
-irrelevant = Relevant False
-
--- | Tag a computation as relevant to the current step.
-relevant :: a -> Relevance a
-relevant = Relevant True
-
 -- | Fast forwards the `Formula` through the given event.
--- | Returns an equivalent `GuardedFormula` and whether the event is "relevant".
--- | An event is relevant in a formula iff the formula contains an atom of that event type "now".
-step :: (Event m ty, Eq ty) => Formula ty -> m -> Relevance (GuardedFormula ty)
-step (Forall phi) s = (\x -> G.And [x, G.Next True (Forall phi)]) <$> step phi s
-step (Exists phi) s = (\x -> G.Or [x, G.Next False (Exists phi)]) <$> step phi s
-step (Next w phi) _ = irrelevant (G.Next w phi)
+--   Returns an equivalent `GuardedFormula`.
+step :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty
+step (Forall phi) s = G.And [step phi s, G.Next True (Forall phi)]
+step (Exists phi) s = G.Or [step phi s, G.Next False (Exists phi)]
+step (Next w phi) _ = G.Next w phi
 step (RepeatNext _ 0 phi) s = step phi s
-step (RepeatNext w k phi) s = (\x -> G.Or [x, G.Next w (RepeatNext w (k - 1) phi)]) <$> step phi s
-step (Until w phi psi) s = (\x y -> G.Or [x, G.And [y, G.Next w (Until w phi psi)]]) <$> step psi s <*> step phi s
-step (And phis) s = G.And <$> traverse (`step` s) phis
-step (Or phis) s = G.Or <$> traverse (`step` s) phis
-step (Implies phi psi) s = G.Implies <$> step phi s <*> step psi s
-step (Not phi) s = G.Not <$> step phi s
-step Bottom _ = irrelevant G.Bottom
-step Top _ = irrelevant G.Top
-step (PropAtom c is) s | ty s c =
-  relevant $ G.And $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
+step (RepeatNext w k phi) s = G.Or [step phi s, G.Next w (RepeatNext w (k - 1) phi)]
+step (Until w phi psi) s = G.Or [step psi s, G.And [step phi s, G.Next w (Until w phi psi)]]
+step (And phis) s = G.And $ fmap (`step` s) phis
+step (Or phis) s = G.Or $ fmap (`step` s) phis
+step (Implies phi psi) s = G.Implies (step phi s) (step psi s)
+step (Not phi) s = G.Not (step phi s)
+step Bottom _ = G.Bottom
+step Top _ = G.Top
+step (PropAtom c is) s | ofTy s c =
+  G.And $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
     case lookup key (props s c) of
-      Just v  -> G.PropEq t v
-      -- NOTE: Shall we have a config option for either crashing hard or returning ⊥ in case there is no such key?
-      Nothing -> G.Bottom
-step (PropForall x phi) s = G.PropForall x <$> step phi s
-step (PropAtom _ _) _ = irrelevant G.Bottom
-step (PropEq a b) _ = irrelevant $ G.PropEq a b
+      Just v  -> G.PropEq (Set.singleton (index s)) t v
+      Nothing ->
+#ifdef CRITICAL_ERROR_ON_MISSING_KEY
+        error $ "Missing key: " <> unpack key
+#else
+        G.Bottom
+#endif
+step (PropAtom {}) _ = G.Bottom
+step (PropForall x phi) s = G.PropForall x (step phi s)
+step (PropEq rel a b) _ = G.PropEq rel a b
 
 -- | Assume that no more temporal events will follow and homogenise the formula.
 terminate :: Formula a -> HomogeneousFormula a
@@ -89,27 +74,27 @@ terminate (Not phi)                = H.Not (terminate phi)
 terminate Bottom                   = H.Bottom
 terminate Top                      = H.Top
 terminate (PropForall x phi)       = H.PropForall x (terminate phi)
-terminate (PropEq a b)             = H.PropEq a b
+terminate (PropEq rel a b)         = H.PropEq rel a b
 
 -- | Check if the formula is a tautology, assuming the end of timeline.
 --   The check is not complete. We conservatively check: (∀x. φ) is a tautology if (x ∉ FV(φ)) ∧ φ is a tautology.
 end :: Formula a -> Bool
-end (Forall _)            = True
-end (Exists _)            = False
-end (Next w _)            = w
-end (RepeatNext _ 0 phi)  = end phi
-end (RepeatNext w _ _)    = w
-end (Until w _ _)         = w
-end (And phis)            = foldl' (&&) True (fmap end phis)
-end (Or phis)             = foldl' (||) False (fmap end phis)
-end (Implies phi psi)     = not (end phi) || end psi
-end (Not phi)             = not (end phi)
-end Bottom                = False
-end Top                   = True
-end (PropAtom _ _)        = False
-end (PropForall x phi)    = not (occursFormula x phi) && end phi
-end (PropEq (Const v) v') = v == v'
-end (PropEq (Var x) _)    = error $ "Encountered a var: " <> unpack x
+end (Forall _)                = True
+end (Exists _)                = False
+end (Next w _)                = w
+end (RepeatNext _ 0 phi)      = end phi
+end (RepeatNext w _ _)        = w
+end (Until w _ _)             = w
+end (And phis)                = foldl' (&&) True (fmap end phis)
+end (Or phis)                 = foldl' (||) False (fmap end phis)
+end (Implies phi psi)         = not (end phi) || end psi
+end (Not phi)                 = not (end phi)
+end Bottom                    = False
+end Top                       = True
+end (PropAtom _ _)            = False
+end (PropForall x phi)        = not (occursFormula x phi) && end phi
+end (PropEq rel (Const v) v') = v == v'
+end (PropEq _ (Var x) _)      = error $ "Encountered a var: " <> unpack x
 
 -- | ◯ (φ ∨ ψ) = ◯ φ ∨ ◯ ψ
 -- | ◯ (φ ∧ ψ) = ◯ φ ∧ ◯ ψ
@@ -134,8 +119,8 @@ simplifyNext (G.Next w phi)       = pushNext w phi where
   pushNext w (Not a)               = G.Not (pushNext w a)
   pushNext _ Bottom                = G.Bottom
   pushNext _ Top                   = G.Top
-  pushNext _ (PropEq a b)          = G.PropEq a b
-  pushNext w (PropAtom a b)        = G.Next w (PropAtom a b)
+  pushNext _ (PropEq rel a b)      = G.PropEq rel a b
+  pushNext w (PropAtom c a)        = G.Next w (PropAtom c a)
   pushNext w (PropForall x phi)    = G.PropForall x (pushNext w phi)
 simplifyNext (G.And phis)         = G.And (fmap simplifyNext phis)
 simplifyNext (G.Or phis)          = G.Or (fmap simplifyNext phis)
@@ -143,14 +128,14 @@ simplifyNext (G.Implies a b)      = G.Implies (simplifyNext a) (simplifyNext b)
 simplifyNext (G.Not phi)          = G.Not (simplifyNext phi)
 simplifyNext G.Bottom             = G.Bottom
 simplifyNext G.Top                = G.Top
-simplifyNext (G.PropEq a b)       = G.PropEq a b
+simplifyNext (G.PropEq rel a b)   = G.PropEq rel a b
 simplifyNext (G.PropForall x phi) = G.PropForall x (simplifyNext phi)
 
 
 -- | Applies the fragment retraction & normalisation recursively.
-simplifyFragment :: Ord ty => GuardedFormula ty -> GuardedFormula ty
+simplifyFragment :: Eq ty => GuardedFormula ty -> GuardedFormula ty
 simplifyFragment phi = go (findAtoms phi mempty) phi where
-  go :: Ord ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
+  go :: Eq ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
   go _ (G.Next w phi) = G.Next w phi
   go atoms (G.And phis) =
     let phis' = fmap (go atoms) phis in
@@ -168,7 +153,7 @@ simplifyFragment phi = go (findAtoms phi mempty) phi where
     normaliseFragment atoms (G.Not phi')
   go _ G.Bottom = G.Bottom
   go _ G.Top = G.Top
-  go _ (G.PropEq a b) = G.PropEq a b
+  go _ (G.PropEq rel a b) = G.PropEq rel a b
   go atoms (G.PropForall x phi) = G.PropForall x (go atoms phi)
 
 -- | Applies the following equivalences recursively:
@@ -249,10 +234,10 @@ simplify (Not a) =
     a      -> Not a
 simplify Bottom = Bottom
 simplify Top = Top
-simplify (PropEq (Const v) v') | v == v' = Top
-simplify (PropEq (Const v) v') = Bottom
-simplify p@(PropEq _ _) = p
-simplify p@(PropAtom _ _) = p
+simplify (PropEq _ (Const v) v') | v == v' = Top
+simplify (PropEq _ (Const v) v') = Bottom
+simplify p@(PropEq {}) = p
+simplify p@(PropAtom {}) = p
 simplify (PropForall x phi) =
   case simplify phi of
     Top    -> Top

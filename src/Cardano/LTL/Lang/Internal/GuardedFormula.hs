@@ -32,7 +32,7 @@ data GuardedFormula ty =
 
    ----------- Event property ----------
    | PropForall PropVarIdentifier (GuardedFormula ty)
-   | PropEq PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropEq (Set Int) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 -- | Embed `GuardedFormula` into `Formula`
@@ -45,7 +45,7 @@ toFormula (Not a)            = F.Not (toFormula a)
 toFormula Bottom             = F.Bottom
 toFormula Top                = F.Top
 toFormula (PropForall x phi) = F.PropForall x (toFormula phi)
-toFormula (PropEq a b)       = F.PropEq a b
+toFormula (PropEq e a b)     = F.PropEq e a b
 
 -- | Peel off one layer of "◯" in `GuardedFormula`, landing in `Formula`.
 forward :: GuardedFormula ty -> Formula ty
@@ -57,4 +57,4 @@ forward (Not phi)          = F.Not (forward phi)
 forward Bottom             = F.Bottom
 forward Top                = F.Top
 forward (PropForall x phi) = F.PropForall x (forward phi)
-forward (PropEq a b)       = F.PropEq a b
+forward (PropEq e a b)     = F.PropEq e a b
