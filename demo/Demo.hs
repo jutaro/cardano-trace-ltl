@@ -127,6 +127,6 @@ main :: IO ()
 main = do
   (!filename, !dur) <- getArgs >>= readArgs
   events <- read filename 250
-  check (prop1 dur) events
+  -- check (prop1 dur) events
   check prop2 events
-  check prop3 events
+  -- check prop3 events

@@ -206,13 +206,7 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       satisfies prop2 log10 @?= Satisfied
   , testCase (show log11 <> " does not satisfy the formula") $
       satisfies prop2 log11 @?= Unsatisfied
-        (PropForall "i"
-          (Or
-            [ PropEq (fromList [1]) (Var "i") (IntValue 1)
-            , And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1))
-            , Or [PropEq (fromList [1]) (Var "i") (IntValue 1),Not (PropEq (fromList [2]) (Var "i") (IntValue 2))]]
-            ]
-          )
-        )
+        (PropForall "i" (Or [PropEq (fromList [1]) (Var "i") (IntValue 1),And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),Or [PropEq (fromList [1]) (Var "i") (IntValue 1),And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),Not (PropEq (fromList [2]) (Var "i") (IntValue 2))]]]]]))
         (fromList [1,2])
+
   ]

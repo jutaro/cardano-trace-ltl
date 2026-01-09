@@ -26,7 +26,7 @@ import qualified Data.Set                                     as Set
 import           Data.Text                                    (unpack)
 import           Prelude                                      hiding (lookup)
 
--- | Fast forwards the `Formula` through the given event.
+-- | Evaluates "now" of the `Formula` at the given event.
 --   Returns an equivalent `GuardedFormula`.
 step :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty
 step (Forall phi) s = G.And [step phi s, G.Next True (Forall phi)]
@@ -34,7 +34,7 @@ step (Exists phi) s = G.Or [step phi s, G.Next False (Exists phi)]
 step (Next w phi) _ = G.Next w phi
 step (RepeatNext _ 0 phi) s = step phi s
 step (RepeatNext w k phi) s = G.Or [step phi s, G.Next w (RepeatNext w (k - 1) phi)]
-step (Until w phi psi) s = G.Or [step psi s, G.And [step phi s, G.Next w (Until w phi psi)]]
+step (Until w phi psi) s = G.Or [step psi s, G.And [G.Not (step psi s), step phi s, G.Next w (Until w phi psi)]]
 step (And phis) s = G.And $ fmap (`step` s) phis
 step (Or phis) s = G.Or $ fmap (`step` s) phis
 step (Implies phi psi) s = G.Implies (step phi s) (step psi s)
