@@ -37,7 +37,7 @@ spanList : (a -> Bool) -> List a -> (List a, List a)
 spanList p [] = ([], [])
 spanList p xs@(x :: rest) =
   if p x then
-    let (pref, suf) = spanList p rest in 
+    let (pref, suf) = spanList p rest in
     (x :: pref, suf)
   else
     ([], xs)
@@ -191,8 +191,8 @@ parseISO8601Micros str =
         restChars = dropN 19 chars
         (microsChars, _) : (List Char, List Char) = ([], [])
           -- case restChars of
-          --   '.' :: more => spanList isDigitChar more) 
-          --   x           => ([], []) 
+          --   '.' :: more => spanList isDigitChar more)
+          --   x           => ([], [])
         yearRes = parseDigits yearChars
         monRes = parseDigits monChars
         dayRes = parseDigits dayChars

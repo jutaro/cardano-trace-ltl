@@ -1,11 +1,11 @@
 module Cardano.LTL.Transform
 
 import Cardano.LTL.Lang.Formula
-import Cardano.LTL.Lang.Internal.Fragment 
+import Cardano.LTL.Lang.Internal.Fragment
 import Cardano.LTL.Lang.Internal.GuardedFormula as G
 import Cardano.LTL.Lang.Internal.HomogeneousFormula as H
-import Cardano.LTL.Occurs 
-import Cardano.LTL.Subst 
+import Cardano.LTL.Occurs
+import Cardano.LTL.Subst
 import Data.List
 import Data.SortedMap as Map
 import Data.SortedSet as Set
@@ -26,14 +26,15 @@ step Bottom _ = G.Bottom
 step Top _ = G.Top
 step (PropAtom c is) s =
   if ofTy s c then
-    let evalConstraint : {auto _ : Event event ty} -> PropConstraint -> G.GuardedFormula ty
-        evalConstraint (MkPropConstraint key t) = ?p1
-          -- case Map.lookup key (props s c) of
-          --   Just v => G.PropEq (Set.insert (index s) Set.empty) t v
-          --   Nothing => G.Bottom
-    in G.And (map evalConstraint (Set.toList is))
+    G.And (map evalConstraint (Set.toList is))
   else
-    G.Bottom
+    G.Bottom where
+
+  evalConstraint : PropConstraint -> G.GuardedFormula ty
+  evalConstraint (MkPropConstraint key t) =
+        case Map.lookup key (props s c) of
+          Just v => G.PropEq (Set.insert (index s) Set.empty) t v
+          Nothing => G.Bottom
 step (PropForall x phi) s = G.PropForall x (step phi s)
 step (PropEq rel a b) _ = G.PropEq rel a b
 

@@ -13,7 +13,7 @@ public export
 EventIndex : Type
 EventIndex = Int
 
-public export 
+public export
 PropVarIdentifier : Type
 PropVarIdentifier = String
 
@@ -30,16 +30,16 @@ Show PropName where
   show (MkPropName x) = show x
 
 public export
-data PropValue = 
-      IntValue Int 
-    | TextValue String 
+data PropValue =
+      IntValue Int
+    | TextValue String
 
 public export
-data PropTerm = Const PropValue | Var PropVarIdentifier 
+data PropTerm = Const PropValue | Var PropVarIdentifier
 
 
 public export
-data PropConstraint = MkPropConstraint PropName PropTerm 
+data PropConstraint = MkPropConstraint PropName PropTerm
 
 public export
 Eq PropValue where
@@ -97,7 +97,7 @@ data Formula ty =
    | PropEq (Set.SortedSet EventIndex) PropTerm PropValue
 
 public export
-interface Event a ty where
+interface Event a ty | a where
   ofTy : a -> ty -> Bool
   index : a -> Int
   props : a -> ty -> Map.SortedMap PropName PropValue
