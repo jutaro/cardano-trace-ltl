@@ -1,0 +1,22 @@
+package cardano-trace-ltl
+
+sourcedir = "src"
+
+depends = elab-util
+
+modules =
+  Cardano.Logging.Types.TraceMessage,
+  Cardano.LTL.Check,
+  Cardano.LTL.Lang.Formula,
+  Cardano.LTL.Lang.Internal.Fragment,
+  Cardano.LTL.Lang.Internal.Fragment0,
+  Cardano.LTL.Lang.Internal.Fragment1,
+  Cardano.LTL.Lang.Internal.Fragment2,
+  Cardano.LTL.Lang.Internal.GuardedFormula,
+  Cardano.LTL.Lang.Internal.HomogeneousFormula,
+  Cardano.LTL.Occurs,
+  Cardano.LTL.Pretty,
+  Cardano.LTL.Satisfy,
+  Cardano.LTL.Subst,
+  Cardano.LTL.Transform,
+  Cardano.Trace.Feed
