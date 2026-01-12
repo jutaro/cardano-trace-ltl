@@ -2,6 +2,9 @@ module Cardano.Logging.Types.TraceMessage
 
 import Data.List
 import Data.String
+import Deriving.Show
+
+%language ElabReflection
 
 public export
 record TraceMessage where
@@ -9,6 +12,10 @@ record TraceMessage where
   tmsgAt : Int
   tmsgNS : String
   tmsgData : String
+
+%hint
+showTraceMessage : Show TraceMessage
+showTraceMessage = %runElab derive
 
 isPrefix : Eq a => List a -> List a -> Bool
 isPrefix [] _ = True
@@ -189,10 +196,10 @@ parseISO8601Micros str =
         minChars = slice 14 2 chars
         secChars = slice 17 2 chars
         restChars = dropN 19 chars
-        (microsChars, _) : (List Char, List Char) = ([], [])
-          -- case restChars of
-          --   '.' :: more => spanList isDigitChar more)
-          --   x           => ([], [])
+        (microsChars, _) : (List Char, List Char) =
+          case restChars of
+            '.' :: more => spanList isDigitChar more
+            x           => ([], [])
         yearRes = parseDigits yearChars
         monRes = parseDigits monChars
         dayRes = parseDigits dayChars
