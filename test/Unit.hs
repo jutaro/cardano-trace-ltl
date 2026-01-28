@@ -106,13 +106,13 @@ log11 =
 logEmpty :: [Msg]
 logEmpty = []
 
--- ∀i. ☐ (Start("idx" = i) ⇒ ◯(2) (Success("idx" = i) ∨ Failure("idx" = i)))
--- Start must be followed by either a corresponding success or failure within 2 units of time.
+-- ∀i. ☐ (Start("idx" = i) ⇒ ♢² (Success("idx" = i) ∨ Failure("idx" = i)))
+-- Start must be followed by either a corresponding success or failure within 3 units of time.
 prop1 :: Formula Ty
 prop1 = PropForall "i" $ Forall $
   Implies
     (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
-    (RepeatNext False 2
+    (ExistsN False 3
       (Or
         [
           PropAtom Success (fromList [PropConstraint "idx" (Var "i")])
@@ -122,11 +122,12 @@ prop1 = PropForall "i" $ Forall $
       )
     )
 
--- ∀i. ¬ (Success("idx" = i) ∨ Failure("idx" = i)) U˜ Start("idx" = i)
+-- ∀i. ¬ (Success("idx" = i) ∨ Failure("idx" = i)) |˜¹⁰⁰ Start("idx" = i)
 -- Start mustn't be preceded by a corresponding success or failure.
 prop2 :: Formula Ty
-prop2 = PropForall "i" $ Until
+prop2 = PropForall "i" $ UntilN
   True
+  100
   (Not $
     Or
       [
@@ -205,8 +206,10 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
   , testCase (show log10 <> " satisfies the formula") $
       satisfies prop2 log10 @?= Satisfied
   , testCase (show log11 <> " does not satisfy the formula") $
-      satisfies prop2 log11 @?= Unsatisfied
-        (PropForall "i" (Or [PropEq (fromList [1]) (Var "i") (IntValue 1),And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),Or [PropEq (fromList [1]) (Var "i") (IntValue 1),And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),Not (PropEq (fromList [2]) (Var "i") (IntValue 2))]]]]]))
+      satisfies prop2 log11 @?=
+      Unsatisfied
+        (PropForall "i"
+          (Or [PropEq (fromList [1]) (Var "i") (IntValue 1), And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),Or [PropEq (fromList [1]) (Var "i") (IntValue 1),Not (PropEq (fromList [2]) (Var "i") (IntValue 2))]]]))
         (fromList [1,2])
 
   ]

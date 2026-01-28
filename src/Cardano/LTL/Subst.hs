@@ -19,10 +19,11 @@ substPropConstraint v x (PropConstraint k t) = PropConstraint k (substPropTerm v
 -- | φ[v / x]
 substFormula :: PropValue -> PropVarIdentifier -> Formula a -> Formula a
 substFormula v x (Forall phi) = Forall (substFormula v x phi)
-substFormula v x (Exists phi) = Exists (substFormula v x phi)
+substFormula v x (ForallN k phi) = ForallN k (substFormula v x phi)
+substFormula v x (ExistsN w k phi) = ExistsN w k (substFormula v x phi)
 substFormula v x (Next w phi) = Next w (substFormula v x phi)
-substFormula v x (RepeatNext w k phi) = RepeatNext w k (substFormula v x phi)
-substFormula v x (Until w phi psi) = Until w (substFormula v x phi) (substFormula v x psi)
+substFormula v x (NextN w k phi) = NextN w k (substFormula v x phi)
+substFormula v x (UntilN w k phi psi) = UntilN w k (substFormula v x phi) (substFormula v x psi)
 substFormula v x (And phis) = And $ fmap (substFormula v x) phis
 substFormula v x (Or phis) = Or $ fmap (substFormula v x) phis
 substFormula v x (Implies phi psi) = Implies (substFormula v x phi) (substFormula v x psi)

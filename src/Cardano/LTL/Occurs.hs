@@ -19,10 +19,11 @@ occursPropConstraint x (PropConstraint _ t) = occursPropTerm x t
 -- | Check if the `PropVarIdentifier` occurs freely in the `Formula`.
 occursFormula :: PropVarIdentifier -> Formula a -> Bool
 occursFormula x (Forall phi) = occursFormula x phi
-occursFormula x (Exists phi) = occursFormula x phi
-occursFormula x (Next w phi) = occursFormula x phi
-occursFormula x (RepeatNext w k phi) = occursFormula x phi
-occursFormula x (Until w phi psi) = occursFormula x phi || occursFormula x psi
+occursFormula x (ForallN _ phi) = occursFormula x phi
+occursFormula x (ExistsN _ _ phi) = occursFormula x phi
+occursFormula x (Next _ phi) = occursFormula x phi
+occursFormula x (NextN _ k phi) = occursFormula x phi
+occursFormula x (UntilN _ _ phi psi) = occursFormula x phi || occursFormula x psi
 occursFormula x (And phis) = foldl' (\acc phi -> acc || occursFormula x phi) False phis
 occursFormula x (Or phis) = foldl' (\acc phi -> acc || occursFormula x phi) False phis
 occursFormula x (Implies phi psi) = occursFormula x phi || occursFormula x psi

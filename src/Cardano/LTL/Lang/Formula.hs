@@ -49,16 +49,18 @@ data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 -- | A type of Linear Temporal Logic formulas over a base type ty.
 data Formula ty =
    ------------ Temporal -------------
-     -- | ☐ φ
+     -- | ☐ ᪲ φ
      Forall (Formula ty)
-     -- | ♢ φ
-   | Exists (Formula ty)
+     -- | ☐ⁿ φ
+   | ForallN Int (Formula ty)
+     -- | ♢ⁿ φ
+   | ExistsN Bool Int (Formula ty)
      -- | ◯ φ
    | Next Bool (Formula ty)
-     -- | ◯(k) φ
-   | RepeatNext Bool Int (Formula ty)
-     -- | φ | φ
-   | Until Bool (Formula ty) (Formula ty)
+     -- | ◯ⁿ φ
+   | NextN Bool Int (Formula ty)
+     -- | φ |ⁿ φ
+   | UntilN Bool Int (Formula ty) (Formula ty)
    -------------------------------------
 
 
@@ -95,10 +97,10 @@ relevant :: Formula ty -> Set EventIndex
 relevant = go mempty where
   go :: Set EventIndex -> Formula ty -> Set EventIndex
   go acc (Forall phi) = go acc phi
-  go acc (Exists phi) = go acc phi
+  go acc (ExistsN _ _ phi) = go acc phi
   go acc (Next _ phi) = go acc phi
-  go acc (RepeatNext _ _ phi) = go acc phi
-  go acc (Until _ phi psi) = go (go acc phi) psi
+  go acc (NextN _ _ phi) = go acc phi
+  go acc (UntilN _ _ phi psi) = go (go acc phi) psi
   go acc (Or phis) = foldl' go acc phis
   go acc (And phis) = foldl' go acc phis
   go acc (Not phi) = go acc phi
@@ -114,7 +116,7 @@ relevant = go mempty where
 -- (t t̄ ⊧ ☐ φ) ⇔ ((t t̄ ⊧ φ) ∧ (t̄ ⊧ ☐ φ))
 -- (t t̄ ⊧ ♢ φ) ⇔ ((t t̄ ⊧ φ) ∨ (t̄ ⊧ ♢ φ))
 -- (_ t̄ ⊧ ◯ φ) ⇔ (t̄ ⊧ φ)
--- (t̄ ⊧ ◯(0) φ) ⇔ (t̄ ⊧ φ)
+-- (t̄ ⊧ ◯(0) φ) ⇔ ⊥
 -- (t t̄ ⊧ ◯(1 + k) φ) ⇔ ((t t̄ ⊧ φ) ∨ (t̄ ⊧ ◯(k) φ))
 -- (t̄ ⊧ φ ∨ ψ) ⇔ ((t̄ ⊧ φ) ∨ (t̄ ⊧ ψ))
 -- (t̄ ⊧ φ ∧ ψ) ⇔ ((t̄ ⊧ φ) ∧ (t̄ ⊧ ψ))

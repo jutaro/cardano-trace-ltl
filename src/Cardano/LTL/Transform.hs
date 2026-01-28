@@ -2,7 +2,6 @@
 {-# LANGUAGE CPP    #-}
 module Cardano.LTL.Transform(
     step
-  , end
   , simplify
   , simplifyNext
   , simplifyFragment
@@ -30,11 +29,15 @@ import           Prelude                                      hiding (lookup)
 --   Returns an equivalent `GuardedFormula`.
 step :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty
 step (Forall phi) s = G.And [step phi s, G.Next True (Forall phi)]
-step (Exists phi) s = G.Or [step phi s, G.Next False (Exists phi)]
+step (ForallN 0 phi) s = G.Top
+step (ForallN k phi) s = G.And [step phi s, G.Next True (ForallN (k - 1) phi)]
+step (ExistsN w 0 phi) s = G.Bottom
+step (ExistsN w k phi) s = G.Or [step phi s, G.Next w (ExistsN w (k - 1) phi)]
 step (Next w phi) _ = G.Next w phi
-step (RepeatNext _ 0 phi) s = step phi s
-step (RepeatNext w k phi) s = G.Or [step phi s, G.Next w (RepeatNext w (k - 1) phi)]
-step (Until w phi psi) s = G.Or [step psi s, G.And [G.Not (step psi s), step phi s, G.Next w (Until w phi psi)]]
+step (NextN _ 0 phi) s = step phi s
+step (NextN w k phi) s = G.Next w (NextN w (k - 1) phi)
+step (UntilN w 0 phi psi) s = step psi s
+step (UntilN w k phi psi) s = G.Or [step psi s, G.And [step phi s, G.Not (step psi s), G.Next w (UntilN w (k - 1) phi psi)]]
 step (And phis) s = G.And $ fmap (`step` s) phis
 step (Or phis) s = G.Or $ fmap (`step` s) phis
 step (Implies phi psi) s = G.Implies (step phi s) (step psi s)
@@ -58,12 +61,15 @@ step (PropEq rel a b) _ = G.PropEq rel a b
 -- | Assume that no more temporal events will follow and homogenise the formula.
 terminate :: Formula a -> HomogeneousFormula a
 terminate (Forall _)               = H.Top
-terminate (Exists _)               = H.Bottom
-terminate (RepeatNext True _ _)    = H.Top
-terminate (RepeatNext False 0 phi) = terminate phi
-terminate (RepeatNext False _ _)   = H.Bottom
-terminate (Until True _ _)         = H.Top
-terminate (Until False _ _)        = H.Bottom
+terminate (ForallN _ _)            = H.Top
+terminate (ExistsN True _ _)       = H.Top
+terminate (ExistsN False _ _)      = H.Bottom
+terminate (NextN _ 0 phi)          = terminate phi
+terminate (NextN True _ _)         = H.Top
+terminate (NextN False _ _)        = H.Bottom
+terminate (UntilN _ 0 _ psi)       = terminate psi
+terminate (UntilN True _ _ _)      = H.Top
+terminate (UntilN False _ _ _)     = H.Bottom
 terminate (PropAtom _ _)           = H.Bottom
 terminate (Next True _)            = H.Top
 terminate (Next False _)           = H.Bottom
@@ -75,26 +81,6 @@ terminate Bottom                   = H.Bottom
 terminate Top                      = H.Top
 terminate (PropForall x phi)       = H.PropForall x (terminate phi)
 terminate (PropEq rel a b)         = H.PropEq rel a b
-
--- | Check if the formula is a tautology, assuming the end of timeline.
---   The check is not complete. We conservatively check: (∀x. φ) is a tautology if (x ∉ FV(φ)) ∧ φ is a tautology.
-end :: Formula a -> Bool
-end (Forall _)                = True
-end (Exists _)                = False
-end (Next w _)                = w
-end (RepeatNext _ 0 phi)      = end phi
-end (RepeatNext w _ _)        = w
-end (Until w _ _)             = w
-end (And phis)                = foldl' (&&) True (fmap end phis)
-end (Or phis)                 = foldl' (||) False (fmap end phis)
-end (Implies phi psi)         = not (end phi) || end psi
-end (Not phi)                 = not (end phi)
-end Bottom                    = False
-end Top                       = True
-end (PropAtom _ _)            = False
-end (PropForall x phi)        = not (occursFormula x phi) && end phi
-end (PropEq rel (Const v) v') = v == v'
-end (PropEq _ (Var x) _)      = error $ "Encountered a var: " <> unpack x
 
 -- | ◯ (φ ∨ ψ) = ◯ φ ∨ ◯ ψ
 -- | ◯ (φ ∧ ψ) = ◯ φ ∧ ◯ ψ
@@ -109,10 +95,13 @@ simplifyNext :: GuardedFormula ty -> GuardedFormula ty
 simplifyNext (G.Next w phi)       = pushNext w phi where
   pushNext :: Bool -> Formula ty -> GuardedFormula ty
   pushNext w (Forall phi)          = G.Next w (Forall phi)
-  pushNext w (Exists phi)          = G.Next w (Exists phi)
+  pushNext w (ForallN k phi)       = G.Next w (ForallN k phi)
+  pushNext w (ExistsN w' k phi)    = G.Next w (ExistsN w' k phi)
   pushNext w (Next w' phi)         = G.Next w (Next w' phi)
-  pushNext w (RepeatNext w' k phi) = G.Next w (RepeatNext w' k phi)
-  pushNext w (Until w' phi psi)    = G.Next w (Until w' phi psi)
+  pushNext w (NextN _ 0 phi)       = pushNext w phi
+  pushNext w (NextN w' k phi)      = G.Next w (NextN w' k phi)
+  pushNext w (UntilN _ 0 _ psi)    = pushNext w psi
+  pushNext w (UntilN w' k phi psi) = G.Next w (UntilN w' k phi psi)
   pushNext w (And phis)            = G.And (fmap (pushNext w) phis)
   pushNext w (Or phis)             = G.Or (fmap (pushNext w) phis)
   pushNext w (Implies a b)         = G.Implies (pushNext w a) (pushNext w b)
@@ -188,19 +177,26 @@ simplify (Forall phi) =
     Top    -> Top
     Bottom -> Bottom
     phi    -> Forall phi
-simplify (Exists phi) =
+simplify (ForallN 0 phi) = Top
+simplify (ForallN k phi) =
   case simplify phi of
     Top    -> Top
     Bottom -> Bottom
-    phi    -> Exists phi
+    phi    -> ForallN k phi
+simplify (ExistsN w 0 phi) = Bottom
+simplify (ExistsN w k phi) =
+  case simplify phi of
+    Top    -> Top
+    Bottom -> Bottom
+    phi    -> ExistsN w k phi
 simplify (Next w phi) = Next w (simplify phi)
-simplify (RepeatNext w 0 phi) = simplify phi
-simplify (RepeatNext w k phi) = RepeatNext w k (simplify phi)
-simplify (Until w phi psi) =
+simplify (NextN w 0 phi) = simplify phi
+simplify (NextN w k phi) = NextN w k (simplify phi)
+simplify (UntilN _ 0 phi psi) = simplify psi
+simplify (UntilN w k phi psi) =
   case simplify psi of
     Top    -> Top
-    Bottom -> simplify phi
-    psi    -> Until w (simplify phi) psi
+    psi    -> UntilN w k (simplify phi) psi
 simplify (And phis) =
   let phis' = filter (/= Top) (fmap simplify phis) in
   case find (== Bottom) phis' of

@@ -1,3 +1,4 @@
+{- HLINT ignore "Use newtype instead of data" -}
 module Cardano.LTL.Check(
     checkParamTerm
   , checkParamConstraint
@@ -31,16 +32,17 @@ checkParamConstraint bound (PropConstraint _ t) = checkParamTerm bound t
 -- |  — all parameter variables shall be universally bound
 checkFormula :: Set PropVarIdentifier -> Formula ty -> [Error]
 checkFormula bound (Forall phi) = checkFormula bound phi
-checkFormula bound (Exists phi) = checkFormula bound phi
+checkFormula bound (ForallN _ phi) = checkFormula bound phi
+checkFormula bound (ExistsN _ _ phi) = checkFormula bound phi
 checkFormula bound (And phis) = foldl' (++) [] (fmap (checkFormula bound) phis)
 checkFormula bound (Or phis) = foldl' (++) [] (fmap (checkFormula bound) phis)
 checkFormula bound (Not phi) = checkFormula bound phi
 checkFormula _ Bottom = []
 checkFormula _ Top = []
 checkFormula bound (Next _ phi) = checkFormula bound phi
-checkFormula bound (RepeatNext _ _ phi) = checkFormula bound phi
+checkFormula bound (NextN _ _ phi) = checkFormula bound phi
 checkFormula bound (Implies phi psi) = checkFormula bound phi ++ checkFormula bound psi
-checkFormula bound (Until _ phi psi) = checkFormula bound phi ++ checkFormula bound psi
+checkFormula bound (UntilN _ _ phi psi) = checkFormula bound phi ++ checkFormula bound psi
 checkFormula bound (PropForall x phi) = checkFormula (insert x bound) phi
 checkFormula bound (PropEq _ t _) = checkParamTerm bound t
 checkFormula bound (PropAtom _ cs) = foldl' (++) [] (fmap (checkParamConstraint bound) (Set.toList cs))

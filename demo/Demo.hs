@@ -84,12 +84,12 @@ check :: Formula Text -> [TemporalEvent] -> IO ()
 check phi events =
   putStrLn (unpack $ prettySatisfactionResult events phi (satisfies phi events))
 
--- ☐ (∀i. StartLeadershipCheck("slot" = i) ⇒ ◯(1ms) (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)))
+-- ☐ (∀i. StartLeadershipCheck("slot" = i) ⇒ ♢(1ms) (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)))
 prop1 :: TemporalEventDurationMicrosec -> Formula Text
 prop1 dur = Forall $ PropForall "i" $
   Implies
     (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")]))
-    (RepeatNext False (floor (1000 / fromIntegral dur))
+    (ExistsN False (floor (1000 / fromIntegral dur))
       (Or
          [
            PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")])
@@ -99,10 +99,11 @@ prop1 dur = Forall $ PropForall "i" $
       )
     )
 
--- ∀i. ¬ (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)) |˜ StartLeadershipCheck("slot" = i)
-prop2 :: Formula Text
-prop2 = PropForall "i" $ Until
+-- ∀i. ☐ (¬ (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)) |˜(1s) StartLeadershipCheck("slot" = i))
+prop2 :: TemporalEventDurationMicrosec -> Formula Text
+prop2 dur = PropForall "i" $ Forall $ UntilN
   True
+  (floor (10000000 / fromIntegral dur))
   (Not $
     Or
       [
@@ -113,11 +114,28 @@ prop2 = PropForall "i" $ Until
   )
   (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")]))
 
--- ☐ (∀i. ForgedBlock("slot" = i) ⇒ ♢ AdoptedBlock("slot" = i))
-prop3 :: Formula Text
-prop3 = Forall $ PropForall "i" $ Implies
+-- ¬ (NodeIsLeader("slot" = 1) ∨ NodeNotLeader("slot" = 1)) |˜(1s) StartLeadershipCheck("slot" = 1)
+prop2' :: TemporalEventDurationMicrosec -> Formula Text
+prop2' dur = let n = 1 in UntilN
+  True
+  (floor (10000000 / fromIntegral dur))
+  (Not $
+    Or
+      [
+        PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Const $ IntValue n)])
+      ,
+        PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Const $ IntValue n)])
+      ]
+  )
+  (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Const $ IntValue n)]))
+
+-- ☐ (∀i. ForgedBlock("slot" = i) ⇒ ♢(100ms) AdoptedBlock("slot" = i))
+prop3 :: TemporalEventDurationMicrosec -> Formula Text
+prop3 dur = Forall $ PropForall "i" $ Implies
   (PropAtom "Forge.Loop.ForgedBlock" (fromList [PropConstraint "slot" (Var "i")]))
-  (Exists (PropAtom "Forge.Loop.AdoptedBlock" (fromList [PropConstraint "slot" (Var "i")])))
+  (ExistsN False (floor (100000 / fromIntegral dur))
+                 (PropAtom "Forge.Loop.AdoptedBlock" (fromList [PropConstraint "slot" (Var "i")]))
+  )
 
 readArgs :: [String] -> IO (Filename, TemporalEventDurationMicrosec)
 readArgs [x, readMaybe -> Just dur] = pure (x, dur)
@@ -126,7 +144,7 @@ readArgs _                          = die "Usage: $ <filename> <duration>"
 main :: IO ()
 main = do
   (!filename, !dur) <- getArgs >>= readArgs
-  events <- read filename 250
-  -- check (prop1 dur) events
-  check prop2 events
-  -- check prop3 events
+  events <- read filename dur
+  check (prop1 dur) events
+  check (prop2' dur) events
+  check (prop3 dur) events

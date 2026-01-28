@@ -13,6 +13,7 @@ import           Cardano.LTL.Lang.Formula
 import           Data.List           (foldl')
 import qualified Data.Set            as Set
 import           Data.Text           (Text, intercalate, pack)
+import Data.Maybe (fromMaybe)
 
 data Lvl = Z | O deriving (Show, Eq, Ord)
 
@@ -48,13 +49,44 @@ prettyPropConstraint (PropConstraint k v) = pack (show k) <> " = " <> prettyProp
 prettyPropConstraints :: [PropConstraint] -> Text
 prettyPropConstraints = intercalate ", " . fmap prettyPropConstraint
 
+mbSuperscript0to9 :: Int -> Maybe Text
+mbSuperscript0to9 0 = Just "⁰"
+mbSuperscript0to9 1 = Just "¹"
+mbSuperscript0to9 2 = Just "²"
+mbSuperscript0to9 3 = Just "³"
+mbSuperscript0to9 4 = Just "⁴"
+mbSuperscript0to9 5 = Just "⁵"
+mbSuperscript0to9 6 = Just "⁶"
+mbSuperscript0to9 7 = Just "⁷"
+mbSuperscript0to9 8 = Just "⁸"
+mbSuperscript0to9 9 = Just "⁹"
+mbSuperscript0to9 _ = Nothing
+
+intToSuperscriptH :: Int -> Text
+intToSuperscriptH x = fromMaybe "" (mbSuperscript0to9 x)
+
+intToSuperscript :: Int -> Text
+intToSuperscript x =
+  let d = x `div` 10 in
+  let m = x `mod` 10 in
+  let x = intToSuperscriptH m in
+  if d == 0
+  then
+    x
+  else
+    let xs = intToSuperscript d in
+    xs <> x
+
+
 -- | Pretty-print a `Formula` using unicode operators.
 prettyFormula :: Show a => Formula a -> Lvl -> Text
-prettyFormula (Forall phi) lvl = surround lvl Z $ "☐ " <> prettyFormula phi O
-prettyFormula (Exists phi) lvl = surround lvl Z $ "♢ " <> prettyFormula phi O
+prettyFormula (Forall phi) lvl = surround lvl Z $ "☐ ᪲ " <> prettyFormula phi O
+prettyFormula (ForallN k phi) lvl = surround lvl Z $ "☐" <> intToSuperscript k <> " " <> prettyFormula phi O
+prettyFormula (ExistsN w k phi) lvl = surround lvl Z $ weak w "♢" <> intToSuperscript k <> " " <> prettyFormula phi O
 prettyFormula (Next w phi) lvl = surround lvl Z $ weak w "◯" <> " " <> prettyFormula phi O
-prettyFormula (RepeatNext w k phi) lvl = surround lvl Z $ weak w "◯" <> "(" <> pack (show k) <> ") " <> prettyFormula phi O
-prettyFormula (Until w phi psi) lvl = surround lvl Z $ prettyFormula phi O <> " " <> weak w "|" <> " " <> prettyFormula psi O
+prettyFormula (NextN w k phi) lvl = surround lvl Z $ weak w "◯" <> intToSuperscript k <> " " <> prettyFormula phi O
+prettyFormula (UntilN w k phi psi) lvl = surround lvl Z $
+  prettyFormula phi O <> " " <> weak w "|" <> intToSuperscript k <> " " <> prettyFormula psi O
 prettyFormula (Implies phi psi) lvl = surround lvl Z $ prettyFormula phi O <> " " <> "⇒" <> " " <> prettyFormula psi O
 prettyFormula (Or phis) lvl = surround lvl Z $ "(∨)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)
 prettyFormula (And phis) lvl = surround lvl Z $ "(∧)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)
