@@ -5,7 +5,6 @@ module Cardano.LTL.Occurs (
   ) where
 
 import           Cardano.LTL.Lang.Formula
-import qualified Data.Set                 as Set
 
 -- | Check if the `PropVarIdentifier` occurs freely in the `PropTerm`.
 occursPropTerm :: PropVarIdentifier -> PropTerm -> Bool
@@ -22,7 +21,7 @@ occursFormula x (Forall _ phi) = occursFormula x phi
 occursFormula x (ForallN _ phi) = occursFormula x phi
 occursFormula x (ExistsN _ _ phi) = occursFormula x phi
 occursFormula x (Next _ phi) = occursFormula x phi
-occursFormula x (NextN _ k phi) = occursFormula x phi
+occursFormula x (NextN _ _ phi) = occursFormula x phi
 occursFormula x (UntilN _ _ phi psi) = occursFormula x phi || occursFormula x psi
 occursFormula x (And phi psi) = occursFormula x phi || occursFormula x psi
 occursFormula x (Or phi psi) = occursFormula x phi || occursFormula x psi

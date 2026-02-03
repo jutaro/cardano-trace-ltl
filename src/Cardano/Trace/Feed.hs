@@ -3,35 +3,27 @@
 {-# LANGUAGE MultiWayIf            #-}
 {-# LANGUAGE OverloadedRecordDot   #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Cardano.Trace.Feed(Filename, TemporalEvent(..), TemporalEventDurationMicrosec, read, readS, verify) where
 
 import           Cardano.Logging.Types.TraceMessage
-import qualified Data.ByteString.Lazy.Char8         as BL
 
 import           Prelude                            hiding (read)
 
 import           Cardano.Data.Strict                (SnocList (..), (<>>))
 import           Cardano.LTL.Lang.Formula           (EventIndex)
-import           Data.Aeson                         (encode, parseJSON,
-                                                     throwDecodeStrict)
-import           Data.Aeson.Decoding                (throwDecode)
+import           Data.Aeson                         (encode, throwDecodeStrict)
 import qualified Data.ByteString.Char8              as BChar8
 import           Data.List                          (sortBy)
-import           Data.Maybe                         (isNothing)
 import           Data.Time.Clock                    (UTCTime)
 import           Data.Time.Clock.POSIX              (utcTimeToPOSIXSeconds)
 import           Data.Word                          (Word64)
 import           GHC.IO.Handle                      (Handle, hIsEOF)
 import           GHC.IO.IOMode                      (IOMode (WriteMode))
 import           Streaming
-import           Streaming.Prelude                  (yield)
-import           System.Exit                        (die)
-import           System.IO                          (FilePath,
-                                                     IOMode (ReadMode),
+import           System.IO                          (IOMode (ReadMode),
                                                      openFile)
-
--- TODO: Stream
 
 type Filename = String
 
@@ -57,10 +49,10 @@ fill idx duration acc t rest = (TemporalEvent t (reverse acc) idx, t + duration,
 
 -- | Slice up the trace messages into consequtive temporal events.
 slice :: TemporalEventDurationMicrosec -> [TraceMessage] -> [TemporalEvent]
-slice duration [] = []
+slice _ [] = []
 slice duration msg@(x : _) = go 0 (utcToMicroseconds (tmsgAt x)) msg where
   go :: EventIndex -> Word64 -> [TraceMessage] -> [TemporalEvent]
-  go idx t [] = []
+  go _ _ [] = []
   go idx t msg =
     let (e, !t', !msg', !idx') = fill idx duration [] t msg in
     e : go idx' t' msg'
@@ -75,7 +67,7 @@ sortByTimestamp = sortBy (\x y -> tmsgAt x `compare` tmsgAt y)
 read :: Filename -> TemporalEventDurationMicrosec -> IO [TemporalEvent]
 read filename duration = do
   traces <- BChar8.lines <$> BChar8.readFile filename
-  msgs <- {- sortByTimestamp <$> -} traverse throwDecodeStrict traces
+  msgs <- sortByTimestamp <$> traverse throwDecodeStrict traces
   let events = slice duration msgs
   pure events
 
@@ -102,6 +94,11 @@ data TemporalEventBuilderSt = TemporalEventBuilderSt {
   nextTerminal :: !Bool
 }
 
+-- | Given a `Filename` input traverse the file line-by-line and
+--   check if every line is a parsable `TraceMessage` with non-decreasing timestamp relative to the previous lines.
+--   If a line in conflict with the above property is found, prompt the user to either keep it or delete the line.
+--   The input file is not mutated. Rather, it is copied over line-by-line to the output file with offending lines dropped if so
+--   desired by the user.
 verify :: Filename -> Filename -> IO ()
 verify input output = do
   inputH <- openFile input ReadMode
@@ -110,7 +107,7 @@ verify input output = do
     Nothing -> pure ()
     Just msg -> do
       writeLine outputH msg
-      go inputH outputH 2 msg.tmsgAt
+      go inputH outputH (2 :: Word64) msg.tmsgAt
 
   where
     go inputH outputH lineNum prev = do
@@ -159,7 +156,7 @@ readS filename duration = do
     go :: Handle
       -> TemporalEventBuilderSt
       -> IO (Either () (Of TemporalEvent TemporalEventBuilderSt))
-    go handle TemporalEventBuilderSt{nextTerminal = True, ..} = pure (Left ())
+    go _ TemporalEventBuilderSt{nextTerminal = True} = pure (Left ())
     go handle TemporalEventBuilderSt{nextBuffered = Nothing, ..} = readLine handle >>= \case
       Nothing -> pure $ Right $
         TemporalEvent nextBeg (nextMsgs <>> []) nextIdx
@@ -169,7 +166,7 @@ readS filename duration = do
         go handle (TemporalEventBuilderSt (Just msg) nextIdx nextBeg nextMsgs False)
     go handle TemporalEventBuilderSt{nextBuffered = Just msg, ..} | utcToMicroseconds msg.tmsgAt <= nextBeg + duration =
         go handle (TemporalEventBuilderSt Nothing nextIdx nextBeg (nextMsgs :< msg) False)
-    go handle TemporalEventBuilderSt{nextBuffered = Just msg, ..} = pure $ Right $
+    go _ TemporalEventBuilderSt{nextBuffered = Just msg, ..} = pure $ Right $
       TemporalEvent nextBeg (nextMsgs <>> []) nextIdx
         :>
       TemporalEventBuilderSt (Just msg) (nextIdx + 1) (nextBeg + duration) Lin False

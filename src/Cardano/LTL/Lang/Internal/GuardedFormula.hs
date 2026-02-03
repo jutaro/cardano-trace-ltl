@@ -8,11 +8,7 @@ module Cardano.LTL.Lang.Internal.GuardedFormula (
 import           Cardano.LTL.Lang.Formula (EventIndex, Formula, PropTerm,
                                            PropValue, PropVarIdentifier)
 import qualified Cardano.LTL.Lang.Formula as F
-import qualified Data.Map                 as Map
-import           Data.Map.Strict          (Map)
-import           Data.Set                 (Set, union)
-import qualified Data.Set                 as Set
-import           Data.Text                (Text)
+import           Data.Set                 (Set)
 import           Prelude                  hiding (and)
 
 -- | A `Formula` where all temporal operators are guarded by a "◯".
@@ -45,14 +41,14 @@ and (phi : phis) = And phi (and phis)
 -- | Embed `GuardedFormula` into `Formula`
 toFormula :: GuardedFormula ty -> Formula ty
 toFormula (Next w phi)       = F.Next w phi
-toFormula (And a b)          = F.And (toFormula a) (toFormula b)
-toFormula (Or a b)           = F.Or (toFormula a) (toFormula b)
-toFormula (Implies a b)      = F.Implies (toFormula a) (toFormula b)
-toFormula (Not a)            = F.Not (toFormula a)
+toFormula (And phi psi)      = F.And (toFormula phi) (toFormula psi)
+toFormula (Or phi psi)       = F.Or (toFormula phi) (toFormula psi)
+toFormula (Implies phi psi)  = F.Implies (toFormula phi) (toFormula psi)
+toFormula (Not phi)          = F.Not (toFormula phi)
 toFormula Bottom             = F.Bottom
 toFormula Top                = F.Top
 toFormula (PropForall x phi) = F.PropForall x (toFormula phi)
-toFormula (PropEq e a b)     = F.PropEq e a b
+toFormula (PropEq e t v)     = F.PropEq e t v
 
 -- | Peel off one layer of "◯" in `GuardedFormula`, landing in `Formula`.
 forward :: GuardedFormula ty -> Formula ty
@@ -64,4 +60,4 @@ forward (Not phi)          = F.Not (forward phi)
 forward Bottom             = F.Bottom
 forward Top                = F.Top
 forward (PropForall x phi) = F.PropForall x (forward phi)
-forward (PropEq e a b)     = F.PropEq e a b
+forward (PropEq e t v)     = F.PropEq e t v

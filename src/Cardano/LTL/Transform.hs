@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# LANGUAGE CPP    #-}
+{-# LANGUAGE CPP          #-}
 {-# LANGUAGE ViewPatterns #-}
 module Cardano.LTL.Transform(
     step
@@ -18,27 +18,26 @@ import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula)
 import qualified Cardano.LTL.Lang.Internal.GuardedFormula     as G
 import           Cardano.LTL.Lang.Internal.HomogeneousFormula (HomogeneousFormula)
 import qualified Cardano.LTL.Lang.Internal.HomogeneousFormula as H
-import           Cardano.LTL.Occurs                           (occursFormula)
-import           Cardano.LTL.Subst                            (substFormula)
-import           Data.List                                    hiding (lookup)
 import           Data.Map.Strict                              (lookup)
 import           Data.Set                                     (Set)
 import qualified Data.Set                                     as Set
-import           Data.Text                                    (unpack)
 import           Prelude                                      hiding (lookup)
+#ifdef CRITICAL_ERROR_ON_MISSING_KEY
+import qualified Data.Text                                    as Text
+#endif
 
 -- | Evaluates "now" of the `Formula` at the given event.
 --   Returns an equivalent `GuardedFormula`.
 step :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty
 step (Forall k phi) s = G.And (step phi s) (G.Next True (NextN True k (Forall k phi)))
-step (ForallN 0 phi) s = G.Top
+step (ForallN 0 _) _ = G.Top
 step (ForallN k phi) s = G.And (step phi s) (G.Next True (ForallN (k - 1) phi))
-step (ExistsN w 0 phi) s = G.Bottom
+step (ExistsN _ 0 _) _ = G.Bottom
 step (ExistsN w k phi) s = G.Or (step phi s) (G.Next w (ExistsN w (k - 1) phi))
 step (Next w phi) _ = G.Next w phi
 step (NextN _ 0 phi) s = step phi s
-step (NextN w k phi) s = G.Next w (NextN w (k - 1) phi)
-step (UntilN w 0 phi psi) s = G.Top
+step (NextN w k phi) _ = G.Next w (NextN w (k - 1) phi)
+step (UntilN _ 0 _ _) _ = G.Top
 step (UntilN w k phi psi) s =
   G.Or (step psi s)
        (G.And
@@ -60,7 +59,7 @@ step (PropAtom c is) s | ofTy s c =
       Just v  -> G.PropEq (Set.singleton (index s)) t v
       Nothing ->
 #ifdef CRITICAL_ERROR_ON_MISSING_KEY
-        error $ "Missing key: " <> unpack key
+        error $ "Missing key: " <> Text.unpack key
 #else
         G.Bottom
 #endif
@@ -70,27 +69,27 @@ step (PropEq rel a b) _ = G.PropEq rel a b
 
 -- | Assume that no more temporal events will follow and homogenise the formula.
 terminate :: Formula a -> HomogeneousFormula
-terminate (Forall _ _)             = H.Top
-terminate (ForallN _ _)            = H.Top
-terminate (ExistsN True _ _)       = H.Top
-terminate (ExistsN False _ _)      = H.Bottom
-terminate (NextN _ 0 phi)          = terminate phi
-terminate (NextN True _ _)         = H.Top
-terminate (NextN False _ _)        = H.Bottom
-terminate (UntilN _ 0 _ psi)       = H.Top
-terminate (UntilN True _ _ _)      = H.Top
-terminate (UntilN False _ _ _)     = H.Bottom
-terminate (PropAtom _ _)           = H.Bottom
-terminate (Next True _)            = H.Top
-terminate (Next False _)           = H.Bottom
-terminate (And phi psi)            = H.And (terminate phi) (terminate psi)
-terminate (Or phi psi)             = H.Or (terminate phi) (terminate psi)
-terminate (Implies phi psi)        = H.Implies (terminate phi) (terminate psi)
-terminate (Not phi)                = H.Not (terminate phi)
-terminate Bottom                   = H.Bottom
-terminate Top                      = H.Top
-terminate (PropForall x phi)       = H.PropForall x (terminate phi)
-terminate (PropEq rel a b)         = H.PropEq rel a b
+terminate (Forall _ _)         = H.Top
+terminate (ForallN _ _)        = H.Top
+terminate (ExistsN True _ _)   = H.Top
+terminate (ExistsN False _ _)  = H.Bottom
+terminate (NextN _ 0 phi)      = terminate phi
+terminate (NextN True _ _)     = H.Top
+terminate (NextN False _ _)    = H.Bottom
+terminate (UntilN _ 0 _ _)     = H.Top
+terminate (UntilN True _ _ _)  = H.Top
+terminate (UntilN False _ _ _) = H.Bottom
+terminate (PropAtom _ _)       = H.Bottom
+terminate (Next True _)        = H.Top
+terminate (Next False _)       = H.Bottom
+terminate (And phi psi)        = H.And (terminate phi) (terminate psi)
+terminate (Or phi psi)         = H.Or (terminate phi) (terminate psi)
+terminate (Implies phi psi)    = H.Implies (terminate phi) (terminate psi)
+terminate (Not phi)            = H.Not (terminate phi)
+terminate Bottom               = H.Bottom
+terminate Top                  = H.Top
+terminate (PropForall x phi)   = H.PropForall x (terminate phi)
+terminate (PropEq rel a b)     = H.PropEq rel a b
 
 -- | ◯ (φ ∨ ψ) = ◯ φ ∨ ◯ ψ
 -- | ◯ (φ ∧ ψ) = ◯ φ ∧ ◯ ψ
@@ -110,7 +109,7 @@ simplifyNext (G.Next w phi)       = pushNext w phi where
   pushNext w (Next w' phi)         = G.Next w (Next w' phi)
   pushNext w (NextN _ 0 phi)       = pushNext w phi
   pushNext w (NextN w' k phi)      = G.Next w (NextN w' k phi)
-  pushNext w (UntilN _ 0 _ psi)    = G.Top
+  pushNext _ (UntilN _ 0 _ _)      = G.Top
   pushNext w (UntilN w' k phi psi) = G.Next w (UntilN w' k phi psi)
   pushNext w (And phi psi)         = G.And (pushNext w phi) (pushNext w psi)
   pushNext w (Or phi psi)          = G.Or (pushNext w phi) (pushNext w psi)
@@ -153,17 +152,17 @@ simplifyFragment phi = go (findAtoms phi mempty) phi where
 fromGuarded :: GuardedFormula ty -> Maybe HomogeneousFormula
 fromGuarded = go Set.empty where
   go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe HomogeneousFormula
-  go bound (G.Next w phi)              = Nothing
+  go _     (G.Next _ _)                = Nothing
   go bound (G.And phi psi)             = H.And <$> go bound phi <*> go bound psi
   go bound (G.Or phi psi)              = H.Or <$> go bound phi <*> go bound psi
   go bound (G.Implies phi psi)         = H.Implies <$> go bound phi <*> go bound psi
   go bound (G.Not phi)                 = H.Not <$> go bound phi
-  go bound G.Bottom                    = Just H.Bottom
-  go bound G.Top                       = Just H.Top
-  go bound (G.PropEq rel (Const v') v) = Just (H.PropEq rel (Const v') v)
+  go _     G.Bottom                    = Just H.Bottom
+  go _     G.Top                       = Just H.Top
+  go _     (G.PropEq rel (Const v') v) = Just (H.PropEq rel (Const v') v)
   go bound (G.PropEq rel (Var x) v)
                 | Set.member x bound   = Just (H.PropEq rel (Var x) v)
-  go bound (G.PropEq rel (Var x) _)    = Nothing
+  go _     (G.PropEq _ (Var _) _)      = Nothing
   go bound (G.PropForall x phi)        = H.PropForall x <$> go (Set.insert x bound) phi
 
 simplifyHomogeneous' :: GuardedFormula ty -> GuardedFormula ty
@@ -210,12 +209,12 @@ simplifyHomogeneous phi = simplifyHomogeneous' phi
 simplify :: Eq ty => Formula ty -> Formula ty
 simplify (Forall k phi) =
   case simplify phi of
-    Top    -> Top
-    phi    -> Forall k phi
+    Top -> Top
+    phi -> Forall k phi
 simplify (ForallN k phi) =
   case simplify phi of
-    Top    -> Top
-    phi    -> ForallN k phi
+    Top -> Top
+    phi -> ForallN k phi
 simplify (ExistsN w k phi) =
   case simplify phi of
     Bottom -> Bottom
@@ -224,22 +223,22 @@ simplify (Next w phi) = Next w (simplify phi)
 simplify (NextN w k phi) = NextN w k (simplify phi)
 simplify (UntilN w k phi psi) =
   case simplify psi of
-    Top    -> Top
-    psi    -> UntilN w k (simplify phi) psi
+    Top -> Top
+    psi -> UntilN w k (simplify phi) psi
 simplify (And phi psi) =
   case (simplify phi, simplify psi) of
-    (Bottom, psi) -> Bottom
-    (Top, psi) -> psi
-    (phi, Bottom) -> Bottom
-    (phi, Top) -> phi
-    (phi, psi) -> And phi psi
+    (Bottom, _) -> Bottom
+    (Top, psi)  -> psi
+    (_, Bottom) -> Bottom
+    (phi, Top)  -> phi
+    (phi, psi)  -> And phi psi
 simplify (Or phi psi) =
   case (simplify phi, simplify psi) of
     (Bottom, psi) -> psi
-    (Top, psi) -> Top
+    (Top, _)      -> Top
     (phi, Bottom) -> phi
-    (phi, Top) -> Top
-    (phi, psi) -> Or phi psi
+    (_, Top)      -> Top
+    (phi, psi)    -> Or phi psi
 simplify (Implies phi psi) =
   case (simplify phi, simplify psi) of
     (Top, psi)    -> psi
@@ -250,13 +249,13 @@ simplify (Implies phi psi) =
 simplify (Not phi) =
   case simplify phi of
     Not phi' -> phi'
-    Top    -> Bottom
-    Bottom -> Top
-    phi    -> Not phi
+    Top      -> Bottom
+    Bottom   -> Top
+    phi      -> Not phi
 simplify Bottom = Bottom
 simplify Top = Top
 simplify (PropEq _ (Const v) v') | v == v' = Top
-simplify (PropEq _ (Const v) v') = Bottom
+simplify (PropEq _ (Const _) _) = Bottom
 simplify p@(PropEq {}) = p
 simplify p@(PropAtom {}) = p
 simplify (PropForall x phi) =

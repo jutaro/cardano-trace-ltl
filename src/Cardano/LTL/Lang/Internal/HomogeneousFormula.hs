@@ -9,14 +9,10 @@ import           Cardano.LTL.Lang.Formula                 (EventIndex, Formula,
 import qualified Cardano.LTL.Lang.Formula                 as F
 import           Cardano.LTL.Lang.Internal.GuardedFormula (GuardedFormula)
 import qualified Cardano.LTL.Lang.Internal.GuardedFormula as G
-import           Cardano.LTL.Subst                        (substPropTerm)
 import           Data.Function                            (on)
 import           Data.Functor                             ((<&>))
-import qualified Data.Map                                 as Map
-import           Data.Map.Strict                          (Map)
-import           Data.Set                                 (Set, union)
+import           Data.Set                                 (Set)
 import qualified Data.Set                                 as Set
-import           Data.Text                                (Text)
 
 data ExtendedPropValue = Val PropValue | Placeholder deriving (Show, Ord, Eq)
 
@@ -63,13 +59,13 @@ valuesAccum acc x (Or phi psi) = valuesAccum (valuesAccum acc x phi) x psi
 valuesAccum acc x (And phi psi) = valuesAccum (valuesAccum acc x phi) x psi
 valuesAccum acc x (Not phi) = valuesAccum acc x phi
 valuesAccum acc x (Implies phi psi) = valuesAccum (valuesAccum acc x phi) x psi
-valuesAccum acc x Top = acc
-valuesAccum acc x Bottom = acc
-valuesAccum acc x (PropEq rel (F.Const _) v) = acc
-valuesAccum acc x (PropEq rel (F.Var x') v) | x == x' = Set.insert v acc
-valuesAccum acc x (PropEq rel (F.Var x') v) = acc
+valuesAccum acc _ Top = acc
+valuesAccum acc _ Bottom = acc
+valuesAccum acc _ (PropEq _ (F.Const _) _) = acc
+valuesAccum acc x (PropEq _ (F.Var x') v) | x == x' = Set.insert v acc
+valuesAccum acc _ (PropEq _ (F.Var _) _) = acc
 valuesAccum acc x (PropForall x' phi) | x /= x' = valuesAccum acc x phi
-valuesAccum acc x (PropForall x' phi) = acc
+valuesAccum acc _ (PropForall _ _i) = acc
 
 -- | Set of values the given prop var can take in the formula.
 values :: PropVarIdentifier -> HomogeneousFormula -> Set PropValue
@@ -83,14 +79,14 @@ substHomogeneousFormula v x (Implies phi psi) = Implies (substHomogeneousFormula
 substHomogeneousFormula v x (Not phi) = Not (substHomogeneousFormula v x phi)
 substHomogeneousFormula _ _ Bottom = Bottom
 substHomogeneousFormula _ _ Top = Top
-substHomogeneousFormula v x (PropEq rel (F.Const v') rhs) = PropEq rel (F.Const v') rhs
+substHomogeneousFormula _ _ (PropEq rel (F.Const v') rhs) = PropEq rel (F.Const v') rhs
 -- (x = v)[☐ / x] = ⊥
 -- i.e. the placeholder value is distinct from all possible `PropValue`s
-substHomogeneousFormula Placeholder x (PropEq rel (F.Var x') rhs) | x == x' = Bottom
+substHomogeneousFormula Placeholder x (PropEq _ (F.Var x') _) | x == x' = Bottom
 substHomogeneousFormula (Val v) x (PropEq rel (F.Var x') rhs) | x == x' = PropEq rel (F.Const v) rhs
-substHomogeneousFormula _ x (PropEq rel (F.Var x') rhs) = PropEq rel (F.Var x') rhs
+substHomogeneousFormula _ _ (PropEq rel (F.Var x') rhs) = PropEq rel (F.Var x') rhs
 substHomogeneousFormula v x (PropForall x' phi) | x /= x' = PropForall x' (substHomogeneousFormula v x phi)
-substHomogeneousFormula v x (PropForall x' phi) = PropForall x' phi
+substHomogeneousFormula _ _ (PropForall x' phi) = PropForall x' phi
 
 -- | Interpret the `HomogeneousFormula` onto `Bool`
 interp :: HomogeneousFormula -> Bool
@@ -100,8 +96,8 @@ interp (Not phi) = not (interp phi)
 interp (Implies phi psi) = not (interp phi) || interp psi
 interp Bottom = False
 interp Top = True
-interp (PropEq rel (F.Const lhs) rhs) = lhs == rhs
-interp (PropEq rel (F.Var x) rhs) = error $ "interp: free variable " <> show x
+interp (PropEq _ (F.Const lhs) rhs) = lhs == rhs
+interp (PropEq _ (F.Var x) _) = error $ "interp: free variable " <> show x
 -- ⟦∀x. φ⟧ <=> φ[☐/x] ∧ φ[v₁ / x] ∧ ... ∧ φ[vₖ / x] where v₁...vₖ is the set of values in φ which x can take.
 interp (PropForall x phi) = interp (substHomogeneousFormula Placeholder x phi) &&
   foldl' (&&) True (

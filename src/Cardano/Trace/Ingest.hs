@@ -33,7 +33,7 @@ import System.IO.Error (isEOFError)
 --    The tag could be a tuple of timestamp and filepath hash to avoid that.
 --    For later processing, the fully parsed line provides the "host"
 --    field for proper labelling.
--- 3. Possibly correlate the polling delay (currently hardcoded 25ms) to the 
+-- 3. Possibly correlate the polling delay (currently hardcoded 25ms) to the
 --    deltaT cutoff in the thread which processes the in-buffer.
 
 data Ingestor = Ingestor
@@ -49,7 +49,7 @@ instance FromJSON Timestamp where
 
 -- The interval in ms for which ingested lines will remain
 -- buffered, before being piped to the queue for consumption.
--- Any consumer will have that as "lag beghind" to real-time.
+-- Any consumer will have that as "lag behind" to real-time.
 mkIngestor :: Int -> IO Ingestor
 mkIngestor millisecs = do
   ingestor <- atomically $
@@ -60,7 +60,7 @@ mkIngestor millisecs = do
   where
     deltaT :: NominalDiffTime
     deltaT = fromIntegral millisecs / 1000
-    
+
     -- Process the in-buffer by removing everything older than the cutoff
     -- deltaT and writing it, sorted by timestamp, into the out-queue.
     go Ingestor{..} = forever $ do
@@ -79,7 +79,7 @@ readLineIngestor = atomically . readTQueue . ingOutQueue
 
 ingestFileThreaded :: Ingestor -> FilePath -> IO ()
 ingestFileThreaded Ingestor{ingInBuffer} fp =
-  void . forkIO $ 
+  void . forkIO $
     -- The ingestion thread may silently die
     handle (\SomeException{} -> pure ())
       thread
@@ -89,7 +89,7 @@ ingestFileThreaded Ingestor{ingInBuffer} fp =
       hSeek hdl SeekFromEnd 0
       forever $ do
         threadDelay $ 25 * 1000
-        
+
         -- This whole polling logic exists to avoid lazy I/O
         hasInput <- hasNewInput hdl
         when hasInput $
@@ -100,7 +100,7 @@ ingestFileThreaded Ingestor{ingInBuffer} fp =
     hasNewInput hdl = handle
       (\(err :: IOException) -> if isEOFError err then pure False else ioError err)
       (hReady hdl)
-    
+
     ingestLines :: Handle -> IO ()
     ingestLines hdl = do
       line <- ByteString.hGetLine hdl
