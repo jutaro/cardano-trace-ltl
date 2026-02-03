@@ -9,15 +9,13 @@ module Cardano.LTL.Lang.Formula (
   , PropConstraint(..)
   , Formula(..)
   , relevant
+  , Relevant
   , Event(..)) where
 
-import qualified Data.Map        as Map
 import           Data.Map.Strict (Map)
 import           Data.Set        (Set, union)
-import qualified Data.Set        as Set
 import           Data.Text       (Text)
-import Data.Time.Clock (UTCTime)
-import Data.Word (Word64)
+import           Data.Word       (Word64)
 
 -- | A property name (e.g. "thread", "node", etc.).
 type PropName = Text
@@ -113,20 +111,21 @@ data Formula ty =
 relevant :: Formula ty -> Set EventIndex
 relevant = go mempty where
   go :: Set EventIndex -> Formula ty -> Set EventIndex
-  go acc (Forall k phi) = go acc phi
-  go acc (ExistsN _ _ phi) = go acc phi
-  go acc (Next _ phi) = go acc phi
-  go acc (NextN _ _ phi) = go acc phi
+  go acc (Forall _ phi)       = go acc phi
+  go acc (ForallN _ phi)      = go acc phi
+  go acc (ExistsN _ _ phi)    = go acc phi
+  go acc (Next _ phi)         = go acc phi
+  go acc (NextN _ _ phi)      = go acc phi
   go acc (UntilN _ _ phi psi) = go (go acc phi) psi
-  go acc (Or phi psi) = go (go acc phi) psi
-  go acc (And phi psi) = go (go acc phi) psi
-  go acc (Not phi) = go acc phi
-  go acc (Implies phi psi) = go (go acc phi) psi
-  go acc Top = acc
-  go acc Bottom = acc
-  go acc (PropAtom {}) = acc
-  go acc (PropForall _ phi) = go acc phi
-  go acc (PropEq rel _ _) = rel `union` acc
+  go acc (Or phi psi)         = go (go acc phi) psi
+  go acc (And phi psi)        = go (go acc phi) psi
+  go acc (Not phi)            = go acc phi
+  go acc (Implies phi psi)    = go (go acc phi) psi
+  go acc Top                  = acc
+  go acc Bottom               = acc
+  go acc (PropAtom {})        = acc
+  go acc (PropForall _ phi)   = go acc phi
+  go acc (PropEq rel _ _)     = rel `union` acc
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
 -- (t̄ ⊧ ∀x. φ) ⇔ (∀x. (t̄ ⊧ φ))

@@ -13,7 +13,7 @@ data Frag1 = Atom (Set EventIndex)
            | Top
            | Bottom
 
--- ¬ t
+-- | ¬ t
 not :: Frag1 -> Frag1
 not (Atom set)    = NotAtom set
 not (NotAtom set) = Atom set

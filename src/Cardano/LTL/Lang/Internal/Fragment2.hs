@@ -10,26 +10,26 @@ data Frag2 = Atom (Set EventIndex) | NotAtom (Set EventIndex) | Top | Bottom
 
 -- | t₀ ∧ t₁
 and :: Frag2 -> Frag2 -> Frag2
-and (Atom ty) (Atom ty')       = Atom (ty `union` ty')
-and (Atom _) (NotAtom _)       = Bottom
-and (Atom _) Bottom            = Bottom
-and (Atom ty) Top              = Atom ty
-and (NotAtom _) (Atom _)       = Bottom
-and (NotAtom ty) (NotAtom ty') = NotAtom (ty `union` ty')
-and (NotAtom ty) Top           = NotAtom ty
-and (NotAtom _) Bottom         = Bottom
-and Top     b                  = b
-and Bottom  b                  = Bottom
+and (Atom rel)    (Atom rel')    = Atom (rel `union` rel')
+and (Atom _)      (NotAtom _)    = Bottom
+and (Atom _)      Bottom         = Bottom
+and (Atom rel)    Top            = Atom rel
+and (NotAtom _)   (Atom _)       = Bottom
+and (NotAtom rel) (NotAtom rel') = NotAtom (rel `union` rel')
+and (NotAtom rel) Top            = NotAtom rel
+and (NotAtom _)   Bottom         = Bottom
+and Top           t              = t
+and Bottom        _              = Bottom
 
 -- | t₀ ∨ t₁
 or :: Frag2 -> Frag2 -> Frag2
-or (Atom ty) (Atom ty')       = Atom (ty `union` ty')
-or (Atom _) (NotAtom _)       = Top
-or (Atom ty) Bottom           = Atom ty
-or (Atom _) Top               = Top
-or (NotAtom _) (Atom _)       = Top
-or (NotAtom ty) (NotAtom ty') = NotAtom (ty `union` ty')
-or (NotAtom _) Top            = Top
-or (NotAtom ty) Bottom        = NotAtom ty
-or Bottom  b                  = b
-or Top     b                  = Top
+or (Atom rel)    (Atom rel')    = Atom (rel `union` rel')
+or (Atom _)      (NotAtom _)    = Top
+or (Atom rel)    Bottom         = Atom rel
+or (Atom _)      Top            = Top
+or (NotAtom _)   (Atom _)       = Top
+or (NotAtom rel) (NotAtom rel') = NotAtom (rel `union` rel')
+or (NotAtom _)   Top            = Top
+or (NotAtom rel) Bottom         = NotAtom rel
+or Bottom        t              = t
+or Top           _              = Top

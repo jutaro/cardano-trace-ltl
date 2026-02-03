@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE Strict              #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 module Cardano.LTL.Satisfy(
     SatisfactionResult(..)
   , satisfies
@@ -11,26 +12,26 @@ module Cardano.LTL.Satisfy(
   ) where
 
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Pretty
 import           Cardano.LTL.Transform
 
 import           Prelude                                      hiding (lookup)
 
 import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula,
-                                                               forward,
-                                                               toFormula)
-import           Cardano.LTL.Lang.Internal.HomogeneousFormula (interp,
-                                                               toGuardedFormula)
-import           Data.Functor                                 ((<&>))
+                                                               forward)
+import           Cardano.LTL.Lang.Internal.HomogeneousFormula (interp)
 import           Data.IORef                                   (IORef,
                                                                modifyIORef')
 import           Data.Set                                     (Set)
-import           Data.Text                                    (Text, unpack)
-import           Data.Time.Clock                              (UTCTime)
 import           Data.Word                                    (Word64)
-import           Debug.Trace                                  (trace, traceShow)
 import           Streaming
-import qualified Cardano.LTL.Prec as Prec
+#ifdef TRACE
+import           Cardano.LTL.Lang.Internal.GuardedFormula     (toFormula)
+import qualified Cardano.LTL.Prec                             as Prec
+import           Cardano.LTL.Pretty                           (prettyFormula)
+import qualified Data.Text                                    as Text
+import           Debug.Trace                                  (trace)
+#endif
+
 
 
 -- | The result of checking satisfaction of a formula against a timeline.
@@ -40,7 +41,7 @@ data SatisfactionResult ty = Satisfied | Unsatisfied (Set EventIndex) deriving (
 traceFormula :: Show ty => String -> Formula ty -> Formula ty
 traceFormula ~str x =
 #ifdef TRACE
-  trace (str <> " " <> unpack (prettyFormula x Prec.Universe)) x
+  trace (str <> " " <> Text.unpack (prettyFormula x Prec.Universe)) x
 #else
   x
 #endif
@@ -48,7 +49,7 @@ traceFormula ~str x =
 traceGuardedFormula :: Show ty => String -> GuardedFormula ty -> GuardedFormula ty
 traceGuardedFormula ~str x =
 #ifdef TRACE
-  trace (str <> " " <> unpack (prettyFormula (toFormula x) Prec.Universe)) x
+  trace (str <> " " <> Text.unpack (prettyFormula (toFormula x) Prec.Universe)) x
 #else
   x
 #endif
