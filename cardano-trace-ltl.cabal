@@ -10,7 +10,7 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
 common warnings
-    ghc-options:
+    ghc-options:      -Wall
 
 library
     import:           warnings
@@ -33,6 +33,7 @@ library
                     , Cardano.LTL.Transform
 
                     , Cardano.Trace.Feed
+                    , Cardano.Trace.Ingest
 
     other-modules:
     other-extensions:
@@ -44,10 +45,13 @@ library
                     , serialise
                     , bytestring
                     , time
+                    , stm
                     , aeson
                     , streaming
 
     hs-source-dirs:   src
+
+    ghc-options:      -O2
 
     default-language: GHC2021
     default-extensions: Strict
@@ -81,6 +85,12 @@ executable cardano-trace-ltl-verify
 executable cardano-trace-ltl-demo
     import:           warnings
     main-is:          Demo.hs
+
+    ghc-options:      -O2
+                      -threaded
+                      -rtsopts
+                      -- limit to 2 cores for now
+                      "-with-rtsopts=-N2"
 
     other-modules:
     other-extensions:
