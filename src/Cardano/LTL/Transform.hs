@@ -1,10 +1,12 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE CPP    #-}
+{-# LANGUAGE ViewPatterns #-}
 module Cardano.LTL.Transform(
     step
   , simplify
   , simplifyNext
   , simplifyFragment
+  , simplifyHomogeneous
   , terminate
   ) where
 
@@ -28,7 +30,7 @@ import           Prelude                                      hiding (lookup)
 -- | Evaluates "now" of the `Formula` at the given event.
 --   Returns an equivalent `GuardedFormula`.
 step :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty
-step (Forall phi) s = G.And [step phi s, G.Next True (Forall phi)]
+step (Forall k phi) s = G.And [step phi s, G.Next True (NextN True k (Forall k phi))]
 step (ForallN 0 phi) s = G.Top
 step (ForallN k phi) s = G.And [step phi s, G.Next True (ForallN (k - 1) phi)]
 step (ExistsN w 0 phi) s = G.Bottom
@@ -36,7 +38,7 @@ step (ExistsN w k phi) s = G.Or [step phi s, G.Next w (ExistsN w (k - 1) phi)]
 step (Next w phi) _ = G.Next w phi
 step (NextN _ 0 phi) s = step phi s
 step (NextN w k phi) s = G.Next w (NextN w (k - 1) phi)
-step (UntilN w 0 phi psi) s = step psi s
+step (UntilN w 0 phi psi) s = G.Top
 step (UntilN w k phi psi) s = G.Or [step psi s, G.And [step phi s, G.Not (step psi s), G.Next w (UntilN w (k - 1) phi psi)]]
 step (And phis) s = G.And $ fmap (`step` s) phis
 step (Or phis) s = G.Or $ fmap (`step` s) phis
@@ -59,15 +61,15 @@ step (PropForall x phi) s = G.PropForall x (step phi s)
 step (PropEq rel a b) _ = G.PropEq rel a b
 
 -- | Assume that no more temporal events will follow and homogenise the formula.
-terminate :: Formula a -> HomogeneousFormula a
-terminate (Forall _)               = H.Top
+terminate :: Formula a -> HomogeneousFormula
+terminate (Forall _ _)             = H.Top
 terminate (ForallN _ _)            = H.Top
 terminate (ExistsN True _ _)       = H.Top
 terminate (ExistsN False _ _)      = H.Bottom
 terminate (NextN _ 0 phi)          = terminate phi
 terminate (NextN True _ _)         = H.Top
 terminate (NextN False _ _)        = H.Bottom
-terminate (UntilN _ 0 _ psi)       = terminate psi
+terminate (UntilN _ 0 _ psi)       = H.Top
 terminate (UntilN True _ _ _)      = H.Top
 terminate (UntilN False _ _ _)     = H.Bottom
 terminate (PropAtom _ _)           = H.Bottom
@@ -94,13 +96,13 @@ terminate (PropEq rel a b)         = H.PropEq rel a b
 simplifyNext :: GuardedFormula ty -> GuardedFormula ty
 simplifyNext (G.Next w phi)       = pushNext w phi where
   pushNext :: Bool -> Formula ty -> GuardedFormula ty
-  pushNext w (Forall phi)          = G.Next w (Forall phi)
+  pushNext w (Forall k phi)        = G.Next w (Forall k phi)
   pushNext w (ForallN k phi)       = G.Next w (ForallN k phi)
   pushNext w (ExistsN w' k phi)    = G.Next w (ExistsN w' k phi)
   pushNext w (Next w' phi)         = G.Next w (Next w' phi)
   pushNext w (NextN _ 0 phi)       = pushNext w phi
   pushNext w (NextN w' k phi)      = G.Next w (NextN w' k phi)
-  pushNext w (UntilN _ 0 _ psi)    = pushNext w psi
+  pushNext w (UntilN _ 0 _ psi)    = G.Top
   pushNext w (UntilN w' k phi psi) = G.Next w (UntilN w' k phi psi)
   pushNext w (And phis)            = G.And (fmap (pushNext w) phis)
   pushNext w (Or phis)             = G.Or (fmap (pushNext w) phis)
@@ -145,6 +147,39 @@ simplifyFragment phi = go (findAtoms phi mempty) phi where
   go _ (G.PropEq rel a b) = G.PropEq rel a b
   go atoms (G.PropForall x phi) = G.PropForall x (go atoms phi)
 
+
+fromGuarded :: GuardedFormula ty -> Maybe HomogeneousFormula
+fromGuarded = go Set.empty where
+  go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe HomogeneousFormula
+  go bound (G.Next w phi)             = Nothing
+  go bound (G.And phis)               = H.And <$> traverse (go bound) phis
+  go bound (G.Or phis)                = H.Or <$> traverse (go bound) phis
+  go bound (G.Implies a b)            = H.Implies <$> go bound a <*> go bound b
+  go bound (G.Not phi)                = H.Not <$> go bound phi
+  go bound G.Bottom                   = Just H.Bottom
+  go bound G.Top                      = Just H.Top
+  go bound (G.PropEq rel (Const a) b) = Just (H.PropEq rel (Const a) b)
+  go bound (G.PropEq rel (Var x) b)
+                | Set.member x bound  = Just (H.PropEq rel (Var x) b)
+  go bound (G.PropEq rel (Var x) b) = Nothing
+  go bound (G.PropForall x phi) = H.PropForall x <$> go (Set.insert x bound) phi
+
+simplifyHomogeneous' :: GuardedFormula ty -> GuardedFormula ty
+simplifyHomogeneous' (G.Next w phi)       = G.Next w phi
+simplifyHomogeneous' (G.And phis)         = G.And (fmap simplifyHomogeneous phis)
+simplifyHomogeneous' (G.Or phis)          = G.Or (fmap simplifyHomogeneous phis)
+simplifyHomogeneous' (G.Implies a b)      = G.Implies (simplifyHomogeneous a) (simplifyHomogeneous b)
+simplifyHomogeneous' (G.Not phi)          = G.Not (simplifyHomogeneous' phi)
+simplifyHomogeneous' G.Bottom             = G.Bottom
+simplifyHomogeneous' G.Top                = G.Top
+simplifyHomogeneous' (G.PropEq rel a b)   = G.PropEq rel a b
+simplifyHomogeneous' (G.PropForall x phi) = G.PropForall x (simplifyHomogeneous' phi)
+
+simplifyHomogeneous :: GuardedFormula ty -> GuardedFormula ty
+simplifyHomogeneous (fromGuarded -> Just g) =
+  if H.interp g then G.Top else G.Bottom
+simplifyHomogeneous phi = simplifyHomogeneous' phi
+
 -- | Applies the following equivalences recursively:
 --   ☐ ⊤ = ⊤
 --   ☐ ⊥ = ⊥
@@ -172,11 +207,11 @@ simplifyFragment phi = go (findAtoms phi mempty) phi where
 --   ∀x. ⊤ = ⊤
 --   ∀x. ⊥ = ⊥
 simplify :: Eq ty => Formula ty -> Formula ty
-simplify (Forall phi) =
+simplify (Forall k phi) =
   case simplify phi of
     Top    -> Top
     Bottom -> Bottom
-    phi    -> Forall phi
+    phi    -> Forall k phi
 simplify (ForallN 0 phi) = Top
 simplify (ForallN k phi) =
   case simplify phi of
@@ -192,7 +227,7 @@ simplify (ExistsN w k phi) =
 simplify (Next w phi) = Next w (simplify phi)
 simplify (NextN w 0 phi) = simplify phi
 simplify (NextN w k phi) = NextN w k (simplify phi)
-simplify (UntilN _ 0 phi psi) = simplify psi
+simplify (UntilN _ 0 phi psi) = Top
 simplify (UntilN w k phi psi) =
   case simplify psi of
     Top    -> Top

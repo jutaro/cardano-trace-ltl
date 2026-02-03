@@ -15,6 +15,8 @@ import           Data.Map.Strict (Map)
 import           Data.Set        (Set, union)
 import qualified Data.Set        as Set
 import           Data.Text       (Text)
+import Data.Time.Clock (UTCTime)
+import Data.Word (Word64)
 
 -- | A property name (e.g. "thread", "node", etc.).
 type PropName = Text
@@ -49,18 +51,18 @@ data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 -- | A type of Linear Temporal Logic formulas over a base type ty.
 data Formula ty =
    ------------ Temporal -------------
-     -- | ☐ ᪲ φ
-     Forall (Formula ty)
+     -- | ☐ₖ ᪲ φ ≡ φ ∧ ◯ᵏ (☐ₖ ᪲)
+     Forall Word (Formula ty)
      -- | ☐ⁿ φ
-   | ForallN Int (Formula ty)
+   | ForallN Word (Formula ty)
      -- | ♢ⁿ φ
-   | ExistsN Bool Int (Formula ty)
+   | ExistsN Bool Word (Formula ty)
      -- | ◯ φ
    | Next Bool (Formula ty)
      -- | ◯ⁿ φ
-   | NextN Bool Int (Formula ty)
+   | NextN Bool Word (Formula ty)
      -- | φ |ⁿ φ
-   | UntilN Bool Int (Formula ty) (Formula ty)
+   | UntilN Bool Word (Formula ty) (Formula ty)
    -------------------------------------
 
 
@@ -96,7 +98,7 @@ data Formula ty =
 relevant :: Formula ty -> Set EventIndex
 relevant = go mempty where
   go :: Set EventIndex -> Formula ty -> Set EventIndex
-  go acc (Forall phi) = go acc phi
+  go acc (Forall k phi) = go acc phi
   go acc (ExistsN _ _ phi) = go acc phi
   go acc (Next _ phi) = go acc phi
   go acc (NextN _ _ phi) = go acc phi
@@ -140,3 +142,4 @@ class Event a ty | a -> ty where
   ofTy :: a -> ty -> Bool
   index :: a -> Int
   props :: a -> ty -> Map PropVarIdentifier PropValue
+  beg :: a -> Word64 -- μs since epoch to the beginning of the event

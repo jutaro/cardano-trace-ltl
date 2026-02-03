@@ -49,7 +49,7 @@ prettyPropConstraint (PropConstraint k v) = pack (show k) <> " = " <> prettyProp
 prettyPropConstraints :: [PropConstraint] -> Text
 prettyPropConstraints = intercalate ", " . fmap prettyPropConstraint
 
-mbSuperscript0to9 :: Int -> Maybe Text
+mbSuperscript0to9 :: Word -> Maybe Text
 mbSuperscript0to9 0 = Just "⁰"
 mbSuperscript0to9 1 = Just "¹"
 mbSuperscript0to9 2 = Just "²"
@@ -62,31 +62,47 @@ mbSuperscript0to9 8 = Just "⁸"
 mbSuperscript0to9 9 = Just "⁹"
 mbSuperscript0to9 _ = Nothing
 
-intToSuperscriptH :: Int -> Text
-intToSuperscriptH x = fromMaybe "" (mbSuperscript0to9 x)
+mbSubscript0to9 :: Word -> Maybe Text
+mbSubscript0to9 0 = Just "₀"
+mbSubscript0to9 1 = Just "₁"
+mbSubscript0to9 2 = Just "₂"
+mbSubscript0to9 3 = Just "₃"
+mbSubscript0to9 4 = Just "₄"
+mbSubscript0to9 5 = Just "₅"
+mbSubscript0to9 6 = Just "₆"
+mbSubscript0to9 7 = Just "₇"
+mbSubscript0to9 8 = Just "₈"
+mbSubscript0to9 9 = Just "₉"
+mbSubscript0to9 _ = Nothing
 
-intToSuperscript :: Int -> Text
-intToSuperscript x =
+wordToXscript :: (Word -> Maybe Text) -> Word -> Text
+wordToXscript f x =
   let d = x `div` 10 in
   let m = x `mod` 10 in
-  let x = intToSuperscriptH m in
+  let Just x = f m in
   if d == 0
   then
     x
   else
-    let xs = intToSuperscript d in
+    let xs = wordToSuperscript d in
     xs <> x
+
+wordToSuperscript :: Word -> Text
+wordToSuperscript = wordToXscript mbSuperscript0to9
+
+wordToSubscript :: Word -> Text
+wordToSubscript = wordToXscript mbSubscript0to9
 
 
 -- | Pretty-print a `Formula` using unicode operators.
 prettyFormula :: Show a => Formula a -> Lvl -> Text
-prettyFormula (Forall phi) lvl = surround lvl Z $ "☐ ᪲ " <> prettyFormula phi O
-prettyFormula (ForallN k phi) lvl = surround lvl Z $ "☐" <> intToSuperscript k <> " " <> prettyFormula phi O
-prettyFormula (ExistsN w k phi) lvl = surround lvl Z $ weak w "♢" <> intToSuperscript k <> " " <> prettyFormula phi O
+prettyFormula (Forall k phi) lvl = surround lvl Z $ "☐" <> wordToSuperscript k <> " ᪲ " <> prettyFormula phi O
+prettyFormula (ForallN k phi) lvl = surround lvl Z $ "☐" <> wordToSuperscript k <> " " <> prettyFormula phi O
+prettyFormula (ExistsN w k phi) lvl = surround lvl Z $ weak w "♢" <> wordToSuperscript k <> " " <> prettyFormula phi O
 prettyFormula (Next w phi) lvl = surround lvl Z $ weak w "◯" <> " " <> prettyFormula phi O
-prettyFormula (NextN w k phi) lvl = surround lvl Z $ weak w "◯" <> intToSuperscript k <> " " <> prettyFormula phi O
+prettyFormula (NextN w k phi) lvl = surround lvl Z $ weak w "◯" <> wordToSuperscript k <> " " <> prettyFormula phi O
 prettyFormula (UntilN w k phi psi) lvl = surround lvl Z $
-  prettyFormula phi O <> " " <> weak w "|" <> intToSuperscript k <> " " <> prettyFormula psi O
+  prettyFormula phi O <> " " <> weak w "|" <> wordToSuperscript k <> " " <> prettyFormula psi O
 prettyFormula (Implies phi psi) lvl = surround lvl Z $ prettyFormula phi O <> " " <> "⇒" <> " " <> prettyFormula psi O
 prettyFormula (Or phis) lvl = surround lvl Z $ "(∨)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)
 prettyFormula (And phis) lvl = surround lvl Z $ "(∧)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)

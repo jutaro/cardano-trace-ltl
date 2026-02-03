@@ -28,6 +28,8 @@ instance Event Msg Ty where
 
   props (Msg _ i) _ = singleton "idx" (IntValue i)
 
+  beg _ = 0
+
 log1 :: [Msg]
 log1 = [Msg Start 2, Placeholder, Msg Success 2]
 
@@ -109,7 +111,7 @@ logEmpty = []
 -- ∀i. ☐ (Start("idx" = i) ⇒ ♢² (Success("idx" = i) ∨ Failure("idx" = i)))
 -- Start must be followed by either a corresponding success or failure within 3 units of time.
 prop1 :: Formula Ty
-prop1 = PropForall "i" $ Forall $
+prop1 = PropForall "i" $ Forall 0 $
   Implies
     (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
     (ExistsN False 3
@@ -167,22 +169,14 @@ prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       satisfies prop1 log3 @?= Satisfied
   , testCase (show log4 <> " does not satisfy the formula") $
       satisfies prop1 log4 @?= Unsatisfied
-        (PropForall "i" (Not (PropEq (fromList [2]) (Var "i") (IntValue 2))))
         (fromList [2])
   , testCase (show log5 <> " satisfies the formula") $
       satisfies prop1 log5 @?= Satisfied
   , testCase (show log6 <> " satisfies the formula") $
       satisfies prop1 log6 @?= Unsatisfied
-        (PropForall "i"
-          (Implies
-            (PropEq (fromList [4]) (Var "i") (IntValue 4))
-            (PropEq (fromList [7]) (Var "i") (IntValue 7))
-          )
-        )
         (fromList [4,7])
   , testCase (show log7 <> " does not satisfy the formula") $
       satisfies prop1 log7 @?= Unsatisfied
-        (PropForall "i" (Not (PropEq (fromList [2]) (Var "i") (IntValue 2))))
         (fromList [2])
   ]
 
@@ -197,19 +191,15 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       satisfies prop2 logEmpty @?= Satisfied
   , testCase (show log8 <> "does not satisfy the formula") $
       satisfies prop2 log8 @?= Unsatisfied
-        (PropForall "i" (Not (PropEq (fromList [1]) (Var "i") (IntValue 1))))
         (fromList [1])
   , testCase (show log9 <> " does not satisfy the formula") $
       satisfies prop2 log9 @?= Unsatisfied
-        (PropForall "i" (Not (PropEq (fromList [1]) (Var "i") (IntValue 1))))
         (fromList [1])
   , testCase (show log10 <> " satisfies the formula") $
       satisfies prop2 log10 @?= Satisfied
   , testCase (show log11 <> " does not satisfy the formula") $
       satisfies prop2 log11 @?=
       Unsatisfied
-        (PropForall "i"
-          (Or [PropEq (fromList [1]) (Var "i") (IntValue 1), And [Not (PropEq (fromList [1]) (Var "i") (IntValue 1)),Or [PropEq (fromList [1]) (Var "i") (IntValue 1),Not (PropEq (fromList [2]) (Var "i") (IntValue 2))]]]))
         (fromList [1,2])
 
   ]

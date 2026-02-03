@@ -31,7 +31,7 @@ checkParamConstraint bound (PropConstraint _ t) = checkParamTerm bound t
 -- | Check whether the formula is syntactically valid:
 -- |  — all parameter variables shall be universally bound
 checkFormula :: Set PropVarIdentifier -> Formula ty -> [Error]
-checkFormula bound (Forall phi) = checkFormula bound phi
+checkFormula bound (Forall _ phi) = checkFormula bound phi
 checkFormula bound (ForallN _ phi) = checkFormula bound phi
 checkFormula bound (ExistsN _ _ phi) = checkFormula bound phi
 checkFormula bound (And phis) = foldl' (++) [] (fmap (checkFormula bound) phis)

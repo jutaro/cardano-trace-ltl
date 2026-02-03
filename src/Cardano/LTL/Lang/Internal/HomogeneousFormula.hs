@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Cardano.LTL.Lang.Internal.HomogeneousFormula (
     HomogeneousFormula(..)
-  , toGuardedFormula, toFormula) where
+  , toGuardedFormula, toFormula, values, substHomogeneousFormula, interp, equiv) where
 
 import           Cardano.LTL.Lang.Formula                 (Formula, PropTerm,
                                                            PropValue,
@@ -14,40 +14,101 @@ import           Data.Map.Strict                          (Map)
 import           Data.Set                                 (Set, union)
 import qualified Data.Set                                 as Set
 import           Data.Text                                (Text)
+import Cardano.LTL.Subst (substPropTerm)
+import Data.Function (on)
+import Data.Functor ((<&>))
+
+data ExtendedPropValue = Val PropValue | Placeholder deriving (Show, Ord, Eq)
 
 -- | A `Formula` with no temporal operators.
-data HomogeneousFormula ty =
+--   Equivalence of two `HomogeneousFormula`s is decidable.
+data HomogeneousFormula =
    ------------ Connective -------------
-     Or [HomogeneousFormula ty]
-   | And [HomogeneousFormula ty]
-   | Not (HomogeneousFormula ty)
-   | Implies (HomogeneousFormula ty) (HomogeneousFormula ty)
+     Or [HomogeneousFormula]
+   | And [HomogeneousFormula]
+   | Not HomogeneousFormula
+   | Implies HomogeneousFormula HomogeneousFormula
    | Top
    | Bottom
    -------------------------------------
 
 
    ----------- Event property ----------
-   | PropForall PropVarIdentifier (HomogeneousFormula ty)
+   | PropForall PropVarIdentifier HomogeneousFormula
    | PropEq (Set Int) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
-toGuardedFormula :: HomogeneousFormula ty -> GuardedFormula ty
-toGuardedFormula (And phis)         = G.And (fmap toGuardedFormula phis)
-toGuardedFormula (Or phis)          = G.Or (fmap toGuardedFormula phis)
-toGuardedFormula (Implies a b)      = G.Implies (toGuardedFormula a) (toGuardedFormula b)
-toGuardedFormula (Not a)            = G.Not (toGuardedFormula a)
-toGuardedFormula Bottom             = G.Bottom
-toGuardedFormula Top                = G.Top
-toGuardedFormula (PropForall x phi) = G.PropForall x (toGuardedFormula phi)
-toGuardedFormula (PropEq e a b)     = G.PropEq e a b
+toGuardedFormula :: HomogeneousFormula -> GuardedFormula ty
+toGuardedFormula (And phis)            = G.And (fmap toGuardedFormula phis)
+toGuardedFormula (Or phis)             = G.Or (fmap toGuardedFormula phis)
+toGuardedFormula (Implies a b)         = G.Implies (toGuardedFormula a) (toGuardedFormula b)
+toGuardedFormula (Not a)               = G.Not (toGuardedFormula a)
+toGuardedFormula Bottom                = G.Bottom
+toGuardedFormula Top                   = G.Top
+toGuardedFormula (PropEq e a b)        = G.PropEq e a b
+toGuardedFormula (PropForall x phi)    = G.PropForall x (toGuardedFormula phi)
 
-toFormula :: HomogeneousFormula ty -> Formula ty
-toFormula (And phis)         = F.And (fmap toFormula phis)
-toFormula (Or phis)          = F.Or (fmap toFormula phis)
-toFormula (Implies a b)      = F.Implies (toFormula a) (toFormula b)
-toFormula (Not a)            = F.Not (toFormula a)
-toFormula Bottom             = F.Bottom
-toFormula Top                = F.Top
-toFormula (PropForall x phi) = F.PropForall x (toFormula phi)
-toFormula (PropEq e a b)     = F.PropEq e a b
+toFormula :: HomogeneousFormula -> Formula ty
+toFormula (And phis)           = F.And (fmap toFormula phis)
+toFormula (Or phis)            = F.Or (fmap toFormula phis)
+toFormula (Implies a b)        = F.Implies (toFormula a) (toFormula b)
+toFormula (Not a)              = F.Not (toFormula a)
+toFormula Bottom               = F.Bottom
+toFormula Top                  = F.Top
+toFormula (PropEq e a b)       = F.PropEq e a b
+toFormula (PropForall x phi)   = F.PropForall x (toFormula phi)
+
+valuesAccum :: Set PropValue -> PropVarIdentifier -> HomogeneousFormula -> Set PropValue
+valuesAccum acc x (Or phis) = foldl' (`valuesAccum` x) acc phis
+valuesAccum acc x (And phis) = foldl' (`valuesAccum` x) acc phis
+valuesAccum acc x (Not phi) = valuesAccum acc x phi
+valuesAccum acc x (Implies phi psi) = valuesAccum (valuesAccum acc x phi) x psi
+valuesAccum acc x Top = acc
+valuesAccum acc x Bottom = acc
+valuesAccum acc x (PropEq rel (F.Const _) v) = acc
+valuesAccum acc x (PropEq rel (F.Var x') v) | x == x' = Set.insert v acc
+valuesAccum acc x (PropEq rel (F.Var x') v) = acc
+valuesAccum acc x (PropForall x' phi) | x /= x' = valuesAccum acc x phi
+valuesAccum acc x (PropForall x' phi) = acc
+
+-- | Set of values the given prop var can take in the formula.
+values :: PropVarIdentifier -> HomogeneousFormula -> Set PropValue
+values = valuesAccum Set.empty
+
+-- | φ[v / x]
+substHomogeneousFormula :: ExtendedPropValue -> PropVarIdentifier -> HomogeneousFormula -> HomogeneousFormula
+substHomogeneousFormula v x (And phis) = And $ fmap (substHomogeneousFormula v x) phis
+substHomogeneousFormula v x (Or phis) = Or $ fmap (substHomogeneousFormula v x) phis
+substHomogeneousFormula v x (Implies phi psi) = Implies (substHomogeneousFormula v x phi) (substHomogeneousFormula v x psi)
+substHomogeneousFormula v x (Not phi) = Not (substHomogeneousFormula v x phi)
+substHomogeneousFormula _ _ Bottom = Bottom
+substHomogeneousFormula _ _ Top = Top
+substHomogeneousFormula v x (PropEq rel (F.Const v') rhs) = PropEq rel (F.Const v') rhs
+-- (x = v)[☐ / x] = ⊥
+-- i.e. the placeholder value is distinct from all possible `PropValue`s
+substHomogeneousFormula Placeholder x (PropEq rel (F.Var x') rhs) | x == x' = Bottom
+substHomogeneousFormula (Val v) x (PropEq rel (F.Var x') rhs) | x == x' = PropEq rel (F.Const v) rhs
+substHomogeneousFormula _ x (PropEq rel (F.Var x') rhs) = PropEq rel (F.Var x') rhs
+substHomogeneousFormula v x (PropForall x' phi) | x /= x' = PropForall x' (substHomogeneousFormula v x phi)
+substHomogeneousFormula v x (PropForall x' phi) = PropForall x' phi
+
+-- | Interpret the `HomogeneousFormula` onto `Bool`
+interp :: HomogeneousFormula -> Bool
+interp (Or phis) = foldl' (||) False (fmap interp phis)
+interp (And phis) = foldl' (&&) True (fmap interp phis)
+interp (Not phi) = not (interp phi)
+interp (Implies phi psi) = not (interp phi) || interp psi
+interp Bottom = False
+interp Top = True
+interp (PropEq rel (F.Const lhs) rhs) = lhs == rhs
+interp (PropEq rel (F.Var x) rhs) = error $ "interp: free variable " <> show x
+-- ⟦∀x. φ⟧ <=> φ[☐/x] ∧ φ[v₁ / x] ∧ ... ∧ φ[vₖ / x] where v₁...vₖ is the set of values in φ which x can take.
+interp (PropForall x phi) = interp (substHomogeneousFormula Placeholder x phi) &&
+  foldl' (&&) True (
+    Set.toList (values x phi) <&> \v ->
+      interp (substHomogeneousFormula (Val v) x phi)
+  )
+
+-- | Check equivalence of two `HomogeneousFormula`s.
+equiv :: HomogeneousFormula -> HomogeneousFormula -> Bool
+equiv = on (==) interp
