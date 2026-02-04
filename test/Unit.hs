@@ -13,7 +13,7 @@ import           Data.Text                (unpack)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-type Identifier = Int
+type Identifier = EventIndex
 
 data Ty = Start | Success | Failure deriving (Show, Eq, Ord)
 
@@ -24,9 +24,9 @@ instance Event Msg Ty where
   ofTy Placeholder _ = False
 
   index (Msg _ i) = i
-  index Placeholder = -1
+  index Placeholder = 999
 
-  props (Msg _ i) _ = singleton "idx" (IntValue i)
+  props (Msg _ i) _ = singleton "idx" (IntValue (fromIntegral i))
 
   beg _ = 0
 

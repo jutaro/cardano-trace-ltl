@@ -82,10 +82,9 @@ prettySatisfactionResult events initial Satisfied = prettyFormula initial Z <> "
 prettySatisfactionResult events initial (Unsatisfied rel) =
   prettyFormula initial Z <> red " (✗)" <> "\n"
     <> tabulate 2 (intercalate "\n------\n" (go (Set.toList rel))) where
-      -- go :: [Int] -> [Text]
-      -- go = fmap (pack . show)
+      go :: [EventIndex] -> [Text]
       go []       = []
-      go (e : es) = prettyTemporalEvent (events !! e) : go es
+      go (e : es) = prettyTemporalEvent (events !! fromIntegral e) : go es
 
 check :: Formula Text -> [TemporalEvent] -> IO ()
 check phi events =

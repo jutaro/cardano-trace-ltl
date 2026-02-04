@@ -2,6 +2,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module Cardano.LTL.Lang.Formula (
     PropName
+  , EventIndex
   , PropVarIdentifier
   , PropValue(..)
   , PropTerm(..)
@@ -22,7 +23,7 @@ import Data.Word (Word64)
 type PropName = Text
 
 -- | An event index.
-type EventIndex = Int
+type EventIndex = Word
 
 -- | Default name: x.
 -- | Identifier denoting an event property variable.
@@ -45,7 +46,18 @@ data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 -- ty ::= <finite type>
 
 -- φ{1} ::= ⊤ | ⊥ | A p c̄ | (φ{≥0})
--- φ{0} ::= ☐ φ{≥1} | ∀x. φ{≥0} | t == v | ♢ φ{≥1} | ◯ φ{≥1} | ◯(k) φ{≥1} | φ{≥1} U φ{≥1} | (∨) φ̅̅{̅̅≥̅̅1̅}̅̅ | (∧) φ̅̅{̅̅≥̅̅1̅}̅̅ | ¬ φ{≥1} | φ{≥1} ⇒ φ{≥1}
+-- φ{0} ::= ☐ₖ ᪲ φ{≥1}
+--        | ☐ᵏ φ{≥1}
+--        | ∀x. φ{≥0}
+--        | t == v
+--        | ♢ᵏ φ{≥1}
+--        | ◯ φ{≥1}
+--        | ◯ᵏ φ{≥1}
+--        | φ{≥1} |ᵏ φ{≥1}
+--        | (∨) φ̅̅{̅̅≥̅̅1̅}̅̅
+--        | (∧) φ̅̅{̅̅≥̅̅1̅}̅̅
+--        | ¬ φ{≥1}
+--        | φ{≥1} ⇒ φ{≥1}
 
 -- | Default name: φ.
 -- | A type of Linear Temporal Logic formulas over a base type ty.
@@ -54,28 +66,36 @@ data Formula ty =
      -- | ☐ₖ ᪲ φ ≡ φ ∧ ◯ᵏ (☐ₖ ᪲)
      Forall Word (Formula ty)
      -- | ☐ⁿ φ
+     --   ☐⁰ φ ≡ ⊤
+     --   ☐¹⁺ᵏ φ ≡ φ ∧ ◯ (☐ᵏ φ)
    | ForallN Word (Formula ty)
      -- | ♢ⁿ φ
+     --   ♢⁰ φ ≡ ⊥
+     --   ♢¹⁺ᵏ φ ≡ φ ∨ ◯ (♢ᵏ φ)
    | ExistsN Bool Word (Formula ty)
      -- | ◯ φ
    | Next Bool (Formula ty)
      -- | ◯ⁿ φ
+     --   ◯⁰ φ ≡ φ
+     --   ◯¹⁺ᵏ φ ≡ ◯ (◯ᵏ φ)
    | NextN Bool Word (Formula ty)
-     -- | φ |ⁿ φ
+     -- | φ |ⁿ ψ
+     --   φ |⁰ ψ ≡ ⊤
+     --   φ |¹⁺ᵏ ψ ≡ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ)
    | UntilN Bool Word (Formula ty) (Formula ty)
    -------------------------------------
 
 
    ------------ Connective -------------
-     -- | ∨ φ̄, such that
-     -- | ∨ [] ≡ ⊥
+     -- | (∨) φ̄, such that
+     -- | (∨) [] ≡ ⊥
    | Or [Formula ty]
-     -- | ∧ φ̄, such that
-     -- | ∧ [] ≡ ⊤
+     -- | (∧) φ̄, such that
+     -- | (∧) [] ≡ ⊤
    | And [Formula ty]
      -- | ¬ φ
    | Not (Formula ty)
-     -- | φ ⇒ φ
+     -- | φ ⇒ ψ
    | Implies (Formula ty) (Formula ty)
      -- | T
    | Top
@@ -115,18 +135,23 @@ relevant = go mempty where
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
 -- (t̄ ⊧ ∀x. φ) ⇔ (∀x. (t̄ ⊧ φ))
--- (t t̄ ⊧ ☐ φ) ⇔ ((t t̄ ⊧ φ) ∧ (t̄ ⊧ ☐ φ))
--- (t t̄ ⊧ ♢ φ) ⇔ ((t t̄ ⊧ φ) ∨ (t̄ ⊧ ♢ φ))
+-- (t̄ ⊧ ☐ₖ ᪲ φ) ⇔ (t̄ ⊧ φ ∧ ◯ᵏ (☐ₖ ᪲))
+-- (t̄ ⊧ ☐⁰ φ) ⇔ ⊤
+-- (t̄ ⊧ ☐¹⁺ᵏ φ) ⇔ (t̄ ⊧ φ ∧ ◯ (☐ᵏ φ))
+-- (t̄ ⊧ ♢⁰ φ) ⇔ ⊥
+-- (t̄ ⊧ ♢¹⁺ᵏ φ) ⇔ (t̄ ⊧ φ ∨ ◯ (♢ᵏ φ))
 -- (_ t̄ ⊧ ◯ φ) ⇔ (t̄ ⊧ φ)
--- (t̄ ⊧ ◯(0) φ) ⇔ ⊥
--- (t t̄ ⊧ ◯(1 + k) φ) ⇔ ((t t̄ ⊧ φ) ∨ (t̄ ⊧ ◯(k) φ))
+-- (t̄ ⊧ ◯⁰ φ) ⇔ (t̄ ⊧ φ)
+-- (t̄ ⊧ ◯¹⁺ᵏ φ) ⇔ (t̄ ⊧ ◯ (◯ᵏ φ))
 -- (t̄ ⊧ φ ∨ ψ) ⇔ ((t̄ ⊧ φ) ∨ (t̄ ⊧ ψ))
 -- (t̄ ⊧ φ ∧ ψ) ⇔ ((t̄ ⊧ φ) ∧ (t̄ ⊧ ψ))
 -- (t̄ ⊧ φ ⇒ ψ) ⇔ ((t̄ ⊧ φ) ⇒ (t̄ ⊧ ψ))
 -- (t̄ ⊧ ¬ φ) ⇔ ¬ (t̄ ⊧ φ)
 -- (t̄ ⊧ ⊥) ⇔ ⊥
 -- (t̄ ⊧ ⊤) ⇔ ⊤
--- (t t̄ ⊧ φ | ψ) ⇔ ((t t̄ ⊧ ψ) ∨ (t t̄ ⊧ φ) ∧ (t̄ ⊧ φ U ψ))
+-- (t̄ ⊧ φ |⁰ ψ) ⇔ ⊥
+-- (t̄ ⊧ φ |¹⁺ᵏ ψ) ⇔ (t̄ ⊧ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ))
+-- (∅ ⊧ A(p, c̄))   ⇔ ⊥
 -- (e _ ⊧ A(p, c̄)) ⇔ c̄ ⊆ props e   if ty e = p
 --                   ⊥             otherwise
 --
@@ -139,7 +164,12 @@ relevant = go mempty where
 --    — Every event must have a distinct index (witnessed by `index`).
 --    — Every event of type `ty` (i.e. `ofTy event = True`) must have a key-value set of properties.
 class Event a ty | a -> ty where
+  -- | Is the event of the given type?
   ofTy :: a -> ty -> Bool
-  index :: a -> Int
+  -- | Index of the event.
+  index :: a -> EventIndex
+  -- | Properties of the event pertinent to the given type.
+  --   props e t assumes that ofTy e t = True
   props :: a -> ty -> Map PropVarIdentifier PropValue
+  -- | Timestamp of the event (Used for debug & monitoring only, so can be Nothing if not provided).
   beg :: a -> Word64 -- μs since epoch to the beginning of the event

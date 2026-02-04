@@ -1,11 +1,12 @@
 module Cardano.LTL.Lang.Internal.Fragment2(Frag2(..), and, or) where
 
-import           Data.Set (Set, union)
-import           Prelude  hiding (and, or)
+import           Cardano.LTL.Lang.Formula (EventIndex)
+import           Data.Set                 (Set, union)
+import           Prelude                  hiding (and, or)
 
 -- | t ::= ☐ | ¬☐ | ⊤ | ⊥
 --   NOTE: "☐" here stands for "atom".
-data Frag2 = Atom (Set Int) | NotAtom (Set Int) | Top | Bottom
+data Frag2 = Atom (Set EventIndex) | NotAtom (Set EventIndex) | Top | Bottom
 
 -- | t₀ ∧ t₁
 and :: Frag2 -> Frag2 -> Frag2

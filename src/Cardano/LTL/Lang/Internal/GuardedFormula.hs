@@ -5,7 +5,7 @@ module Cardano.LTL.Lang.Internal.GuardedFormula (
   , forward) where
 
 import           Cardano.LTL.Lang.Formula (Formula, PropTerm, PropValue,
-                                           PropVarIdentifier)
+                                           PropVarIdentifier, EventIndex)
 import qualified Cardano.LTL.Lang.Formula as F
 import qualified Data.Map                 as Map
 import           Data.Map.Strict          (Map)
@@ -32,7 +32,7 @@ data GuardedFormula ty =
 
    ----------- Event property ----------
    | PropForall PropVarIdentifier (GuardedFormula ty)
-   | PropEq (Set Int) PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropEq (Set EventIndex) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 -- | Embed `GuardedFormula` into `Formula`

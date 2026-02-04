@@ -1,12 +1,13 @@
 module Cardano.LTL.Lang.Internal.Fragment1(Frag1(..), not) where
 
-import           Data.Set (Set)
-import           Prelude  hiding (not)
+import           Cardano.LTL.Lang.Formula (EventIndex)
+import           Data.Set                 (Set)
+import           Prelude                  hiding (not)
 
 -- | t ::= ☐ | ¬☐ | t ∧ t | t ∨ t | ⊤ | ⊥
 --   NOTE: "☐" here stands for "atom".
-data Frag1 = Atom (Set Int)
-           | NotAtom (Set Int)
+data Frag1 = Atom (Set EventIndex)
+           | NotAtom (Set EventIndex)
            | And Frag1 Frag1
            | Or Frag1 Frag1
            | Top

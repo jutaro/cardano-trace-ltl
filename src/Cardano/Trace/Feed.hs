@@ -1,8 +1,8 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiWayIf            #-}
 {-# LANGUAGE OverloadedRecordDot   #-}
 {-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE MultiWayIf #-}
 
 module Cardano.Trace.Feed(Filename, TemporalEvent(..), TemporalEventDurationMicrosec, read, readS, verify) where
 
@@ -12,8 +12,9 @@ import qualified Data.ByteString.Lazy.Char8         as BL
 import           Prelude                            hiding (read)
 
 import           Cardano.Data.Strict                (SnocList (..), (<>>))
-import           Data.Aeson                         (parseJSON,
-                                                     throwDecodeStrict, encode)
+import           Cardano.LTL.Lang.Formula           (EventIndex)
+import           Data.Aeson                         (encode, parseJSON,
+                                                     throwDecodeStrict)
 import           Data.Aeson.Decoding                (throwDecode)
 import qualified Data.ByteString.Char8              as BChar8
 import           Data.List                          (sortBy)
@@ -40,9 +41,9 @@ utcToMicroseconds utcTime = round $ utcTimeToPOSIXSeconds utcTime * 1000000
 -- | Temporal event represents multiple trace messages spanning some duration of time together with an index of the event.
 data TemporalEvent = TemporalEvent {
   -- | Microseconds since epoch when the event begins.
-  beg :: Word64,
+  beg      :: Word64,
   messages :: [TraceMessage],
-  idx :: Int
+  idx      :: EventIndex
 }
 
 -- | For performance considerations we group trace messages within the specified duration in one `TemporalEvent`.
@@ -50,7 +51,7 @@ type TemporalEventDurationMicrosec = Word64
 
 -- | Fill in one temporal event.
 --   Returns the event, the starting time boundary of the next temporal event and the rest of the messages.
-fill :: Int -> TemporalEventDurationMicrosec -> [TraceMessage] -> Word64 -> [TraceMessage] -> (TemporalEvent, Word64, [TraceMessage], Int)
+fill :: EventIndex -> TemporalEventDurationMicrosec -> [TraceMessage] -> Word64 -> [TraceMessage] -> (TemporalEvent, Word64, [TraceMessage], EventIndex)
 fill idx duration acc t (x : xs) | utcToMicroseconds x.tmsgAt  <= t + duration = fill idx duration (x : acc) t xs
 fill idx duration acc t rest = (TemporalEvent t (reverse acc) idx, t + duration, rest, idx + 1)
 
@@ -58,7 +59,7 @@ fill idx duration acc t rest = (TemporalEvent t (reverse acc) idx, t + duration,
 slice :: TemporalEventDurationMicrosec -> [TraceMessage] -> [TemporalEvent]
 slice duration [] = []
 slice duration msg@(x : _) = go 0 (utcToMicroseconds (tmsgAt x)) msg where
-  go :: Int -> Word64 -> [TraceMessage] -> [TemporalEvent]
+  go :: EventIndex -> Word64 -> [TraceMessage] -> [TemporalEvent]
   go idx t [] = []
   go idx t msg =
     let (e, !t', !msg', !idx') = fill idx duration [] t msg in
@@ -92,7 +93,7 @@ data TemporalEventBuilderSt = TemporalEventBuilderSt {
   -- | A message read from the file that hasn't been distributed yet (if any).
   nextBuffered :: !(Maybe TraceMessage),
   -- | Next issued temporal event ordinal.
-  nextIdx      :: !Int,
+  nextIdx      :: !EventIndex,
   -- | The timestamp of the beginning of the next issued temporal event.
   nextBeg      :: !Word64,
   -- | The accumulation of trace messages to be issued in the next issued temporal event.

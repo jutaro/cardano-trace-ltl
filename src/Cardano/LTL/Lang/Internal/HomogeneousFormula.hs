@@ -3,20 +3,20 @@ module Cardano.LTL.Lang.Internal.HomogeneousFormula (
     HomogeneousFormula(..)
   , toGuardedFormula, toFormula, values, substHomogeneousFormula, interp, equiv) where
 
-import           Cardano.LTL.Lang.Formula                 (Formula, PropTerm,
-                                                           PropValue,
+import           Cardano.LTL.Lang.Formula                 (EventIndex, Formula,
+                                                           PropTerm, PropValue,
                                                            PropVarIdentifier)
 import qualified Cardano.LTL.Lang.Formula                 as F
 import           Cardano.LTL.Lang.Internal.GuardedFormula (GuardedFormula)
 import qualified Cardano.LTL.Lang.Internal.GuardedFormula as G
+import           Cardano.LTL.Subst                        (substPropTerm)
+import           Data.Function                            (on)
+import           Data.Functor                             ((<&>))
 import qualified Data.Map                                 as Map
 import           Data.Map.Strict                          (Map)
 import           Data.Set                                 (Set, union)
 import qualified Data.Set                                 as Set
 import           Data.Text                                (Text)
-import Cardano.LTL.Subst (substPropTerm)
-import Data.Function (on)
-import Data.Functor ((<&>))
 
 data ExtendedPropValue = Val PropValue | Placeholder deriving (Show, Ord, Eq)
 
@@ -35,7 +35,7 @@ data HomogeneousFormula =
 
    ----------- Event property ----------
    | PropForall PropVarIdentifier HomogeneousFormula
-   | PropEq (Set Int) PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropEq (Set EventIndex) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 toGuardedFormula :: HomogeneousFormula -> GuardedFormula ty
@@ -49,14 +49,14 @@ toGuardedFormula (PropEq e a b)        = G.PropEq e a b
 toGuardedFormula (PropForall x phi)    = G.PropForall x (toGuardedFormula phi)
 
 toFormula :: HomogeneousFormula -> Formula ty
-toFormula (And phis)           = F.And (fmap toFormula phis)
-toFormula (Or phis)            = F.Or (fmap toFormula phis)
-toFormula (Implies a b)        = F.Implies (toFormula a) (toFormula b)
-toFormula (Not a)              = F.Not (toFormula a)
-toFormula Bottom               = F.Bottom
-toFormula Top                  = F.Top
-toFormula (PropEq e a b)       = F.PropEq e a b
-toFormula (PropForall x phi)   = F.PropForall x (toFormula phi)
+toFormula (And phis)         = F.And (fmap toFormula phis)
+toFormula (Or phis)          = F.Or (fmap toFormula phis)
+toFormula (Implies a b)      = F.Implies (toFormula a) (toFormula b)
+toFormula (Not a)            = F.Not (toFormula a)
+toFormula Bottom             = F.Bottom
+toFormula Top                = F.Top
+toFormula (PropEq e a b)     = F.PropEq e a b
+toFormula (PropForall x phi) = F.PropForall x (toFormula phi)
 
 valuesAccum :: Set PropValue -> PropVarIdentifier -> HomogeneousFormula -> Set PropValue
 valuesAccum acc x (Or phis) = foldl' (`valuesAccum` x) acc phis

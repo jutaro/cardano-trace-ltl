@@ -32,7 +32,7 @@ import Data.Time.Clock (UTCTime)
 
 -- | The result of checking satisfaction of a formula against a timeline.
 -- | If unsatisfied, stores points in the timeline "relevant" to the formula.
-data SatisfactionResult ty = Satisfied | Unsatisfied (Set Int) deriving (Show, Eq)
+data SatisfactionResult ty = Satisfied | Unsatisfied (Set EventIndex) deriving (Show, Eq)
 
 traceFormula :: Show ty => String -> Formula ty -> Formula ty
 traceFormula ~str x =
@@ -81,7 +81,8 @@ satisfies formula xs = merge $ handleEnd <$> foldl' (\acc e -> acc >>= flip hand
 data SatisfyMetrics ty = SatisfyMetrics {
   eventsConsumed :: Word64,
   currentFormula :: Formula ty,
-  currentTimestamp :: Word64 -- μs
+  -- | μs
+  currentTimestamp :: Word64
 }
 
 -- | Given a formula and a stream of events, forms a `Monad` computation that returns a `SatisfactionResult` once
