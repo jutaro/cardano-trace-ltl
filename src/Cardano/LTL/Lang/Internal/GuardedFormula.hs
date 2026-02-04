@@ -5,10 +5,9 @@ module Cardano.LTL.Lang.Internal.GuardedFormula (
   , toFormula
   , forward) where
 
-import           Cardano.LTL.Lang.Formula (EventIndex, Formula, PropTerm,
-                                           PropValue, PropVarIdentifier)
+import           Cardano.LTL.Lang.Formula (Formula, PropTerm,
+                                           PropValue, PropVarIdentifier, Relevance)
 import qualified Cardano.LTL.Lang.Formula as F
-import           Data.Set                 (Set)
 import           Prelude                  hiding (and)
 
 -- | A `Formula` where all temporal operators are guarded by a "◯".
@@ -30,7 +29,7 @@ data GuardedFormula ty =
 
    ----------- Event property ----------
    | PropForall PropVarIdentifier (GuardedFormula ty)
-   | PropEq (Set EventIndex) PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropEq (Relevance ty) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 and :: [GuardedFormula ty] -> GuardedFormula ty

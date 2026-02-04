@@ -21,7 +21,6 @@ import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula,
 import           Cardano.LTL.Lang.Internal.HomogeneousFormula (interp)
 import           Data.IORef                                   (IORef,
                                                                modifyIORef')
-import           Data.Set                                     (Set)
 import           Data.Word                                    (Word64)
 import           Streaming
 #ifdef TRACE
@@ -36,7 +35,7 @@ import           Debug.Trace                                  (trace)
 
 -- | The result of checking satisfaction of a formula against a timeline.
 -- | If unsatisfied, stores points in the timeline "relevant" to the formula.
-data SatisfactionResult ty = Satisfied | Unsatisfied (Set EventIndex) deriving (Show, Eq)
+data SatisfactionResult ty = Satisfied | Unsatisfied (Relevance ty) deriving (Show, Eq)
 
 traceFormula :: Show ty => String -> Formula ty -> Formula ty
 traceFormula ~str x =
@@ -54,7 +53,7 @@ traceGuardedFormula ~str x =
   x
 #endif
 
-handleNext :: (Event event ty, Eq ty, Show ty) => (Int, Formula ty) -> event -> Either (SatisfactionResult ty) (Int, Formula ty)
+handleNext :: (Event event ty, Ord ty, Show ty) => (Int, Formula ty) -> event -> Either (SatisfactionResult ty) (Int, Formula ty)
 handleNext (!n, !formula0) m =
   let formula1 = traceFormula ("(" <> show (1 + n) <> ")\ninitial:") formula0 in
   let formula2 = traceGuardedFormula "stepped:" $ step formula1 m in
@@ -65,14 +64,14 @@ handleNext (!n, !formula0) m =
   let formula6 = traceFormula "simplified:" (simplify formula5) in
   case formula6 of
     Top     -> Left Satisfied
-    Bottom  -> Left (Unsatisfied (relevant formula0))
+    Bottom  -> Left (Unsatisfied (relevance formula0))
     formula -> Right (n + 1, formula6)
 
-handleEnd :: (Eq ty, Show ty) => (Int, Formula ty) -> SatisfactionResult ty
+handleEnd :: (Ord ty, Show ty) => (Int, Formula ty) -> SatisfactionResult ty
 handleEnd (!n, !formula) =
     if (interp . terminate) formula
     then Satisfied
-    else Unsatisfied (relevant formula)
+    else Unsatisfied (relevance formula)
 
 merge :: Either a a -> a
 merge = either id id
@@ -97,7 +96,7 @@ satisfiesS :: (Event event ty, Ord ty, Show ty)
            -> Stream (Of event) IO ()
            -> IORef (SatisfyMetrics ty)
            -> IO ([event], SatisfactionResult ty)
-satisfiesS formula input metrics = run $ mapped (pure. pure . runIdentity) $ unfold (go metrics) (0, formula, [], input) where
+satisfiesS formula input metrics = fmap (first reverse) <$> run $ mapped (pure. pure . runIdentity) $ unfold (go metrics) (0, formula, [], input) where
   go :: (Ord ty, Event event ty, Show ty)
      => IORef (SatisfyMetrics ty)
      -> (Int, Formula ty, [event], Stream (Of event) IO ())

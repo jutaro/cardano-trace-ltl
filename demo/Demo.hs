@@ -71,17 +71,18 @@ prettyTraceMessage msg = tmsgNS msg <>
       Success (TraceProps slot) -> "(\"slot\" = " <> pack (show slot) <> ")"
 
 
-prettyTemporalEvent :: TemporalEvent -> Text
-prettyTemporalEvent (TemporalEvent _ msgs _) = intercalate "\n" (fmap prettyTraceMessage msgs)
+prettyTemporalEvent :: TemporalEvent -> Text -> Text
+prettyTemporalEvent (TemporalEvent _ msgs _) ns =
+  maybe (intercalate "\n" (fmap prettyTraceMessage msgs) <> "  // " <> ns) prettyTraceMessage (find (\ x -> x.tmsgNS == ns) msgs)
 
 prettySatisfactionResult :: [TemporalEvent] -> Formula Text -> SatisfactionResult Text -> Text
 prettySatisfactionResult _ initial Satisfied = prettyFormula initial Prec.Universe <> " " <> green "(✔)"
 prettySatisfactionResult events initial (Unsatisfied rel) =
   prettyFormula initial Prec.Universe <> red " (✗)" <> "\n"
     <> tabulate 2 (intercalate "\n------\n" (go (Set.toList rel))) where
-      go :: [EventIndex] -> [Text]
+      go :: [(EventIndex, Text)] -> [Text]
       go []       = []
-      go (e : es) = prettyTemporalEvent (events !! fromIntegral e) : go es
+      go ((e, ty) : es) = prettyTemporalEvent (events !! fromIntegral e) ty : go es
 
 check :: Formula Text -> [TemporalEvent] -> IO ()
 check phi events =

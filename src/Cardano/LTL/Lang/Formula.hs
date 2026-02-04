@@ -8,8 +8,8 @@ module Cardano.LTL.Lang.Formula (
   , PropTerm(..)
   , PropConstraint(..)
   , Formula(..)
-  , relevant
-  , Relevant
+  , relevance
+  , Relevance
   , Event(..)) where
 
 import           Data.Map.Strict (Map)
@@ -38,8 +38,8 @@ data PropTerm = Const PropValue | Var PropVarIdentifier deriving (Show, Eq, Ord)
 -- | Default name: c.
 data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 
--- | Set of indices into relevant events.
-type Relevant = Set EventIndex
+-- | Set of indices into relevant events together with type of the relevant event.
+type Relevance ty = Set (EventIndex, ty)
 
 -- v ::= <int> | "<string>"
 -- t ::= <int> | "<string>" | x
@@ -103,14 +103,14 @@ data Formula ty =
      -- | ∀x. φ
    | PropForall PropVarIdentifier (Formula ty)
      -- | i = v
-   | PropEq (Set EventIndex) PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropEq (Relevance ty) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 
--- | Compute the set of indices of relevant events.
-relevant :: Formula ty -> Set EventIndex
-relevant = go mempty where
-  go :: Set EventIndex -> Formula ty -> Set EventIndex
+-- | Compute the total `Relevance` of the formula.
+relevance :: Ord ty => Formula ty -> Relevance ty
+relevance = go mempty where
+  go :: Ord ty => Relevance ty -> Formula ty -> Relevance ty
   go acc (Forall _ phi)       = go acc phi
   go acc (ForallN _ phi)      = go acc phi
   go acc (ExistsN _ _ phi)    = go acc phi

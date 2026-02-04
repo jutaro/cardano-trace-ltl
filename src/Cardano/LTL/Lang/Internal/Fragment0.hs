@@ -1,21 +1,20 @@
 module Cardano.LTL.Lang.Internal.Fragment0(Frag0(..), andList, orList) where
-import           Cardano.LTL.Lang.Formula (EventIndex)
-import           Data.Set                 (Set)
+import           Cardano.LTL.Lang.Formula (Relevance)
 
 -- | t ::= ☐ | ¬ t | t ∧ t | t ∨ t | t ⇒ t | ⊤ | ⊥
 --   NOTE: "☐" here stands for "atom".
-data Frag0 = Atom (Set EventIndex)
-           | Not Frag0
-           | And Frag0 Frag0
-           | Or Frag0 Frag0
-           | Implies Frag0 Frag0
-           | Top
-           | Bottom
+data Frag0 ty = Atom (Relevance ty)
+              | Not (Frag0 ty)
+              | And (Frag0 ty) (Frag0 ty)
+              | Or (Frag0 ty) (Frag0 ty)
+              | Implies (Frag0 ty) (Frag0 ty)
+              | Top
+              | Bottom
 
 -- t₁ ∧ t₂ ∧ ... ∧ tₙ
-andList :: [Frag0] -> Frag0
+andList :: [Frag0 ty] -> Frag0 ty
 andList = foldl' And Top
 
 -- t₁ ∨ t₂ ∨ ... ∨ tₙ
-orList :: [Frag0] -> Frag0
+orList :: [Frag0 ty] -> Frag0 ty
 orList = foldl' Or Bottom

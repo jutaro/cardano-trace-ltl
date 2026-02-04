@@ -56,7 +56,7 @@ step Top _ = G.Top
 step (PropAtom c is) s | ofTy s c =
   G.and $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
     case lookup key (props s c) of
-      Just v  -> G.PropEq (Set.singleton (index s)) t v
+      Just v  -> G.PropEq (Set.singleton (index s, c)) t v
       Nothing ->
 #ifdef CRITICAL_ERROR_ON_MISSING_KEY
         error $ "Missing key: " <> Text.unpack key
@@ -68,7 +68,7 @@ step (PropForall x phi) s = G.PropForall x (step phi s)
 step (PropEq rel a b) _ = G.PropEq rel a b
 
 -- | Assume that no more temporal events will follow and homogenise the formula.
-terminate :: Formula a -> HomogeneousFormula
+terminate :: Formula a -> HomogeneousFormula a
 terminate (Forall _ _)         = H.Top
 terminate (ForallN _ _)        = H.Top
 terminate (ExistsN True _ _)   = H.Top
@@ -131,9 +131,9 @@ simplifyNext (G.PropForall x phi) = G.PropForall x (simplifyNext phi)
 
 
 -- | Applies the fragment retraction & normalisation recursively.
-simplifyFragment :: Eq ty => GuardedFormula ty -> GuardedFormula ty
+simplifyFragment :: Ord ty => GuardedFormula ty -> GuardedFormula ty
 simplifyFragment phi = go (findAtoms phi mempty) phi where
-  go :: Eq ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
+  go :: Ord ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
   go _ (G.Next w phi) = G.Next w phi
   go atoms (G.And phi psi) =
     normaliseFragment atoms (G.And (go atoms phi) (go atoms psi))
@@ -149,9 +149,9 @@ simplifyFragment phi = go (findAtoms phi mempty) phi where
   go atoms (G.PropForall x phi) = G.PropForall x (go atoms phi)
 
 
-fromGuarded :: GuardedFormula ty -> Maybe HomogeneousFormula
+fromGuarded :: GuardedFormula ty -> Maybe (HomogeneousFormula ty)
 fromGuarded = go Set.empty where
-  go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe HomogeneousFormula
+  go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe (HomogeneousFormula ty)
   go _     (G.Next _ _)                = Nothing
   go bound (G.And phi psi)             = H.And <$> go bound phi <*> go bound psi
   go bound (G.Or phi psi)              = H.Or <$> go bound phi <*> go bound psi
