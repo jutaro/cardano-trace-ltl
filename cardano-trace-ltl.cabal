@@ -26,6 +26,7 @@ library
                     , Cardano.LTL.Lang.Internal.GuardedFormula
                     , Cardano.LTL.Lang.Internal.HomogeneousFormula
                     , Cardano.LTL.Occurs
+                    , Cardano.LTL.Prec
                     , Cardano.LTL.Pretty
                     , Cardano.LTL.Satisfy
                     , Cardano.LTL.Subst

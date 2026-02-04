@@ -1,6 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Main(main) where
 
@@ -12,14 +12,20 @@ import           Cardano.LTL.Satisfy
 import           Prelude                            hiding (read)
 import qualified Prelude
 
-import           Cardano.LTL.Pretty                 (Lvl (Z), prettyFormula,
+import qualified Cardano.LTL.Prec                   as Prec
+import           Cardano.LTL.Pretty                 (prettyFormula,
                                                      prettyPropKeyValueList)
-import           Cardano.Trace.Feed                 (Filename, TemporalEvent(..),
+import           Cardano.Trace.Feed                 (Filename,
+                                                     TemporalEvent (..),
                                                      TemporalEventDurationMicrosec,
                                                      read, readS)
+import           Control.Concurrent                 (forkIO, killThread,
+                                                     threadDelay)
 import           Control.Monad                      (unless)
 import           Data.Aeson
 import           Data.Foldable                      (for_)
+import           Data.IORef                         (IORef, modifyIORef',
+                                                     newIORef, readIORef)
 import           Data.List                          (find)
 import           Data.Map                           (singleton)
 import qualified Data.Map                           as Map
@@ -28,15 +34,13 @@ import           Data.Set                           (fromList)
 import qualified Data.Set                           as Set
 import           Data.Text                          (Text, intercalate, pack,
                                                      unpack)
+import qualified Data.Text.IO                       as Text
+import           Data.Word                          (Word64)
 import           GHC.Generics                       (Generic)
+import           Streaming
 import           System.Environment                 (getArgs)
 import           System.Exit                        (die)
 import           Text.Read                          (readMaybe)
-import Streaming
-import Data.IORef (IORef, newIORef, modifyIORef', readIORef)
-import Data.Word (Word64)
-import Control.Concurrent (threadDelay, forkIO, killThread)
-import qualified Data.Text.IO as Text
 
 newtype TraceProps = TraceProps { slot :: Int } deriving (Show, Eq, Ord, Generic)
 
@@ -78,9 +82,9 @@ prettyTemporalEvent :: TemporalEvent -> Text
 prettyTemporalEvent (TemporalEvent _ msgs _) = intercalate "\n" (fmap prettyTraceMessage msgs)
 
 prettySatisfactionResult :: [TemporalEvent] -> Formula Text -> SatisfactionResult Text -> Text
-prettySatisfactionResult events initial Satisfied = prettyFormula initial Z <> " " <> green "(✔)"
+prettySatisfactionResult events initial Satisfied = prettyFormula initial Prec.Universe <> " " <> green "(✔)"
 prettySatisfactionResult events initial (Unsatisfied rel) =
-  prettyFormula initial Z <> red " (✗)" <> "\n"
+  prettyFormula initial Prec.Universe <> red " (✗)" <> "\n"
     <> tabulate 2 (intercalate "\n------\n" (go (Set.toList rel))) where
       go :: [EventIndex] -> [Text]
       go []       = []
@@ -109,7 +113,7 @@ checkS phi events = do
       putStrLn $ "Catch-up ratio: "
         <> show ((fromIntegral (next.currentTimestamp - prev.currentTimestamp) :: Double) / 1_000_000)
         <> "  // values above 1.0 <=> realtime"
-      Text.putStrLn $ "Formula: " <> prettyFormula next.currentFormula Z
+      Text.putStrLn $ "Formula: " <> prettyFormula next.currentFormula Prec.Universe
       threadDelay 1_000_000 -- 1s
       runDisplay next counter
 
@@ -118,28 +122,22 @@ prop1 :: TemporalEventDurationMicrosec -> Formula Text
 prop1 dur = Forall 0 $ PropForall "i" $
   Implies
     (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")]))
-    (ExistsN False (floor (1000000 / fromIntegral dur))
-      (Or
-         [
-           PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")])
-         ,
-           PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")])
-         ]
-      )
+    (ExistsN False (floor (1000000 / fromIntegral dur)) $
+      Or
+        (PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
+        (PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")]))
+
     )
 
--- ☐(1s) ᪲ (∀i. (¬ (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)) |˜(1s) StartLeadershipCheck("slot" = i)))
+-- ☐ ᪲(1s) (∀i. (¬ (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)) |˜(1s) StartLeadershipCheck("slot" = i)))
 prop2 :: TemporalEventDurationMicrosec -> Formula Text
 prop2 dur = Forall (floor (10000000 / fromIntegral dur)) $ PropForall "i" $ UntilN
   True
   (floor (10000000 / fromIntegral dur))
   (Not $
     Or
-      [
-        PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")])
-      ,
-        PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")])
-      ]
+      (PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
+      (PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")]))
   )
   (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")]))
 
@@ -155,9 +153,9 @@ data Mode = Online | Offline
 
 
 readMode :: String -> Maybe Mode
-readMode "online" = Just Online
+readMode "online"  = Just Online
 readMode "offline" = Just Offline
-readMode _ = Nothing
+readMode _         = Nothing
 
 readArgs :: [String] -> IO (Filename, Mode, TemporalEventDurationMicrosec)
 readArgs [x, readMode -> Just mode ,readMaybe -> Just dur]
@@ -176,5 +174,5 @@ main = do
     Online -> do
       let eventStream = readS filename dur
       checkS (prop1 dur) eventStream
-      -- checkS (prop2 dur) eventStream
-      -- checkS (prop3 dur) eventStream
+      checkS (prop2 dur) eventStream
+      checkS (prop3 dur) eventStream

@@ -19,15 +19,18 @@ import           Prelude                                      hiding (lookup)
 import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula,
                                                                forward,
                                                                toFormula)
-import           Cardano.LTL.Lang.Internal.HomogeneousFormula (toGuardedFormula, interp)
+import           Cardano.LTL.Lang.Internal.HomogeneousFormula (interp,
+                                                               toGuardedFormula)
 import           Data.Functor                                 ((<&>))
-import           Data.IORef                                   (IORef, modifyIORef')
+import           Data.IORef                                   (IORef,
+                                                               modifyIORef')
 import           Data.Set                                     (Set)
 import           Data.Text                                    (Text, unpack)
+import           Data.Time.Clock                              (UTCTime)
 import           Data.Word                                    (Word64)
 import           Debug.Trace                                  (trace, traceShow)
 import           Streaming
-import Data.Time.Clock (UTCTime)
+import qualified Cardano.LTL.Prec as Prec
 
 
 -- | The result of checking satisfaction of a formula against a timeline.
@@ -37,7 +40,7 @@ data SatisfactionResult ty = Satisfied | Unsatisfied (Set EventIndex) deriving (
 traceFormula :: Show ty => String -> Formula ty -> Formula ty
 traceFormula ~str x =
 #ifdef TRACE
-  trace (str <> " " <> unpack (prettyFormula x Z)) x
+  trace (str <> " " <> unpack (prettyFormula x Prec.Universe)) x
 #else
   x
 #endif
@@ -45,7 +48,7 @@ traceFormula ~str x =
 traceGuardedFormula :: Show ty => String -> GuardedFormula ty -> GuardedFormula ty
 traceGuardedFormula ~str x =
 #ifdef TRACE
-  trace (str <> " " <> unpack (prettyFormula (toFormula x) Z)) x
+  trace (str <> " " <> unpack (prettyFormula (toFormula x) Prec.Universe)) x
 #else
   x
 #endif
@@ -79,8 +82,8 @@ satisfies formula xs = merge $ handleEnd <$> foldl' (\acc e -> acc >>= flip hand
 
 
 data SatisfyMetrics ty = SatisfyMetrics {
-  eventsConsumed :: Word64,
-  currentFormula :: Formula ty,
+  eventsConsumed   :: Word64,
+  currentFormula   :: Formula ty,
   -- | μs
   currentTimestamp :: Word64
 }

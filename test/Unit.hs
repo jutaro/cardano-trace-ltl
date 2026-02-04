@@ -5,7 +5,8 @@ module Main(main) where
 
 import           Cardano.LTL.Check        (Error (..), checkFormula)
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Pretty       (Lvl (Z), prettyFormula)
+import qualified Cardano.LTL.Prec         as Prec
+import           Cardano.LTL.Pretty       (prettyFormula)
 import           Cardano.LTL.Satisfy      (SatisfactionResult (..), satisfies)
 import           Data.Map                 (singleton)
 import           Data.Set                 (fromList)
@@ -23,7 +24,7 @@ instance Event Msg Ty where
   ofTy (Msg t _) t'  = t == t'
   ofTy Placeholder _ = False
 
-  index (Msg _ i) = i
+  index (Msg _ i)   = i
   index Placeholder = 999
 
   props (Msg _ i) _ = singleton "idx" (IntValue (fromIntegral i))
@@ -114,14 +115,11 @@ prop1 :: Formula Ty
 prop1 = PropForall "i" $ Forall 0 $
   Implies
     (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
-    (ExistsN False 3
-      (Or
-        [
-          PropAtom Success (fromList [PropConstraint "idx" (Var "i")])
-        ,
-          PropAtom Failure (fromList [PropConstraint "idx" (Var "i")])
-        ]
-      )
+    (ExistsN False 3 $
+      Or
+        (PropAtom Success (fromList [PropConstraint "idx" (Var "i")]))
+        (PropAtom Failure (fromList [PropConstraint "idx" (Var "i")]))
+
     )
 
 -- ∀i. ¬ (Success("idx" = i) ∨ Failure("idx" = i)) |˜¹⁰⁰ Start("idx" = i)
@@ -132,11 +130,8 @@ prop2 = PropForall "i" $ UntilN
   100
   (Not $
     Or
-      [
-        PropAtom Success (fromList [PropConstraint "idx" (Var "i")])
-      ,
-        PropAtom Failure (fromList [PropConstraint "idx" (Var "i")])
-      ]
+      (PropAtom Success (fromList [PropConstraint "idx" (Var "i")]))
+      (PropAtom Failure (fromList [PropConstraint "idx" (Var "i")]))
   )
   (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
 
@@ -152,15 +147,15 @@ syn2 = PropForall "i" (PropAtom () (fromList [PropConstraint "idx" (Var "j")]))
 syntacticTests :: TestTree
 syntacticTests = testGroup "Syntanctic checks"
   [
-    testCase (unpack $ prettyFormula syn1 Z <> " is syntactically valid") $
+    testCase (unpack $ prettyFormula syn1 Prec.Universe <> " is syntactically valid") $
       [] @?= checkFormula mempty syn1
   ,
-    testCase (unpack $ prettyFormula syn2 Z <> " is syntactically invalid") $
+    testCase (unpack $ prettyFormula syn2 Prec.Universe <> " is syntactically invalid") $
       [UnboundPropVarIdentifier "j"] @?= checkFormula mempty syn2
   ]
 
 prop1SatisfiabilityTests :: TestTree
-prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFormula prop1 Z))
+prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFormula prop1 Prec.Universe))
   [ testCase (show log1 <> " satisfies the formula") $
       satisfies prop1 log1 @?= Satisfied
   , testCase (show log2 <> " satisfies the formula") $
@@ -181,7 +176,7 @@ prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
   ]
 
 prop2SatisfiabilityTests :: TestTree
-prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFormula prop2 Z))
+prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFormula prop2 Prec.Universe))
   [
     testCase (show log1 <> " satisfies the formula") $
       satisfies prop2 log1 @?= Satisfied

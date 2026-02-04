@@ -24,8 +24,8 @@ data ExtendedPropValue = Val PropValue | Placeholder deriving (Show, Ord, Eq)
 --   Equivalence of two `HomogeneousFormula`s is decidable.
 data HomogeneousFormula =
    ------------ Connective -------------
-     Or [HomogeneousFormula]
-   | And [HomogeneousFormula]
+     Or HomogeneousFormula HomogeneousFormula
+   | And HomogeneousFormula HomogeneousFormula
    | Not HomogeneousFormula
    | Implies HomogeneousFormula HomogeneousFormula
    | Top
@@ -39,8 +39,8 @@ data HomogeneousFormula =
    -------------------------------------
 
 toGuardedFormula :: HomogeneousFormula -> GuardedFormula ty
-toGuardedFormula (And phis)            = G.And (fmap toGuardedFormula phis)
-toGuardedFormula (Or phis)             = G.Or (fmap toGuardedFormula phis)
+toGuardedFormula (And a b)             = G.And (toGuardedFormula a) (toGuardedFormula b)
+toGuardedFormula (Or a b)              = G.Or (toGuardedFormula a) (toGuardedFormula b)
 toGuardedFormula (Implies a b)         = G.Implies (toGuardedFormula a) (toGuardedFormula b)
 toGuardedFormula (Not a)               = G.Not (toGuardedFormula a)
 toGuardedFormula Bottom                = G.Bottom
@@ -49,8 +49,8 @@ toGuardedFormula (PropEq e a b)        = G.PropEq e a b
 toGuardedFormula (PropForall x phi)    = G.PropForall x (toGuardedFormula phi)
 
 toFormula :: HomogeneousFormula -> Formula ty
-toFormula (And phis)         = F.And (fmap toFormula phis)
-toFormula (Or phis)          = F.Or (fmap toFormula phis)
+toFormula (And a b)          = F.And (toFormula a) (toFormula b)
+toFormula (Or a b)           = F.Or (toFormula a) (toFormula b)
 toFormula (Implies a b)      = F.Implies (toFormula a) (toFormula b)
 toFormula (Not a)            = F.Not (toFormula a)
 toFormula Bottom             = F.Bottom
@@ -59,8 +59,8 @@ toFormula (PropEq e a b)     = F.PropEq e a b
 toFormula (PropForall x phi) = F.PropForall x (toFormula phi)
 
 valuesAccum :: Set PropValue -> PropVarIdentifier -> HomogeneousFormula -> Set PropValue
-valuesAccum acc x (Or phis) = foldl' (`valuesAccum` x) acc phis
-valuesAccum acc x (And phis) = foldl' (`valuesAccum` x) acc phis
+valuesAccum acc x (Or phi psi) = valuesAccum (valuesAccum acc x phi) x psi
+valuesAccum acc x (And phi psi) = valuesAccum (valuesAccum acc x phi) x psi
 valuesAccum acc x (Not phi) = valuesAccum acc x phi
 valuesAccum acc x (Implies phi psi) = valuesAccum (valuesAccum acc x phi) x psi
 valuesAccum acc x Top = acc
@@ -77,8 +77,8 @@ values = valuesAccum Set.empty
 
 -- | φ[v / x]
 substHomogeneousFormula :: ExtendedPropValue -> PropVarIdentifier -> HomogeneousFormula -> HomogeneousFormula
-substHomogeneousFormula v x (And phis) = And $ fmap (substHomogeneousFormula v x) phis
-substHomogeneousFormula v x (Or phis) = Or $ fmap (substHomogeneousFormula v x) phis
+substHomogeneousFormula v x (And phi psi) = And (substHomogeneousFormula v x phi) (substHomogeneousFormula v x psi)
+substHomogeneousFormula v x (Or phi psi) = Or (substHomogeneousFormula v x phi) (substHomogeneousFormula v x psi)
 substHomogeneousFormula v x (Implies phi psi) = Implies (substHomogeneousFormula v x phi) (substHomogeneousFormula v x psi)
 substHomogeneousFormula v x (Not phi) = Not (substHomogeneousFormula v x phi)
 substHomogeneousFormula _ _ Bottom = Bottom
@@ -94,8 +94,8 @@ substHomogeneousFormula v x (PropForall x' phi) = PropForall x' phi
 
 -- | Interpret the `HomogeneousFormula` onto `Bool`
 interp :: HomogeneousFormula -> Bool
-interp (Or phis) = foldl' (||) False (fmap interp phis)
-interp (And phis) = foldl' (&&) True (fmap interp phis)
+interp (Or phi psi) = interp phi || interp psi
+interp (And phi psi) = interp phi && interp psi
 interp (Not phi) = not (interp phi)
 interp (Implies phi psi) = not (interp phi) || interp psi
 interp Bottom = False

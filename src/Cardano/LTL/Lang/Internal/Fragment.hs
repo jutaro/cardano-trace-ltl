@@ -15,8 +15,8 @@ import           Prelude                                  hiding (and, not, or)
 -- | Try to retract `GuardedFormula` into `Frag0` taking the atom to be the given (x = v).
 toFrag0 :: Eq ty => Pair PropVarIdentifier PropValue -> GuardedFormula ty -> Maybe Frag0
 toFrag0 _ (G.Next {}) = Nothing
-toFrag0 abs (G.And phis) = F0.andList <$> traverse (toFrag0 abs) phis
-toFrag0 abs (G.Or phis) = F0.orList <$> traverse (toFrag0 abs) phis
+toFrag0 abs (G.And a b) = F0.And <$> toFrag0 abs a <*> toFrag0 abs b
+toFrag0 abs (G.Or a b) = F0.Or <$> toFrag0 abs a <*> toFrag0 abs b
 toFrag0 abs (G.Implies a b) = F0.Implies <$> toFrag0 abs a <*> toFrag0 abs b
 toFrag0 abs (G.Not a) = F0.Not <$> toFrag0 abs a
 toFrag0 _ G.Top = Just F0.Top
@@ -54,8 +54,8 @@ toGuardedFormula _ F2.Top                   = G.Top
 -- | Find all `Frag0` atoms in the form of (x = v) in the formula "now".
 findAtoms :: GuardedFormula ty -> Set (Pair PropVarIdentifier PropValue) -> Set (Pair PropVarIdentifier PropValue)
 findAtoms (G.Next w phi) set       = set
-findAtoms (G.And phis) set         = foldl' (flip findAtoms) set phis
-findAtoms (G.Or phis) set          = foldl' (flip findAtoms) set phis
+findAtoms (G.And a b) set          = findAtoms a (findAtoms b set)
+findAtoms (G.Or a b) set           = findAtoms a (findAtoms b set)
 findAtoms (G.Implies a b) set      = findAtoms a (findAtoms b set)
 findAtoms (G.Not a) set            = findAtoms a set
 findAtoms G.Bottom set             = set

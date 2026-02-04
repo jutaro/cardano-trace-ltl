@@ -30,24 +30,32 @@ import           Prelude                                      hiding (lookup)
 -- | Evaluates "now" of the `Formula` at the given event.
 --   Returns an equivalent `GuardedFormula`.
 step :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty
-step (Forall k phi) s = G.And [step phi s, G.Next True (NextN True k (Forall k phi))]
+step (Forall k phi) s = G.And (step phi s) (G.Next True (NextN True k (Forall k phi)))
 step (ForallN 0 phi) s = G.Top
-step (ForallN k phi) s = G.And [step phi s, G.Next True (ForallN (k - 1) phi)]
+step (ForallN k phi) s = G.And (step phi s) (G.Next True (ForallN (k - 1) phi))
 step (ExistsN w 0 phi) s = G.Bottom
-step (ExistsN w k phi) s = G.Or [step phi s, G.Next w (ExistsN w (k - 1) phi)]
+step (ExistsN w k phi) s = G.Or (step phi s) (G.Next w (ExistsN w (k - 1) phi))
 step (Next w phi) _ = G.Next w phi
 step (NextN _ 0 phi) s = step phi s
 step (NextN w k phi) s = G.Next w (NextN w (k - 1) phi)
 step (UntilN w 0 phi psi) s = G.Top
-step (UntilN w k phi psi) s = G.Or [step psi s, G.And [step phi s, G.Not (step psi s), G.Next w (UntilN w (k - 1) phi psi)]]
-step (And phis) s = G.And $ fmap (`step` s) phis
-step (Or phis) s = G.Or $ fmap (`step` s) phis
+step (UntilN w k phi psi) s =
+  G.Or (step psi s)
+       (G.And
+         (step phi s)
+         (G.And
+           (G.Not (step psi s))
+           (G.Next w (UntilN w (k - 1) phi psi))
+         )
+       )
+step (And phi psi) s = G.And (step phi s) (step psi s)
+step (Or phi psi) s = G.Or (step phi s) (step psi s)
 step (Implies phi psi) s = G.Implies (step phi s) (step psi s)
 step (Not phi) s = G.Not (step phi s)
 step Bottom _ = G.Bottom
 step Top _ = G.Top
 step (PropAtom c is) s | ofTy s c =
-  G.And $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
+  G.and $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
     case lookup key (props s c) of
       Just v  -> G.PropEq (Set.singleton (index s)) t v
       Nothing ->
@@ -75,8 +83,8 @@ terminate (UntilN False _ _ _)     = H.Bottom
 terminate (PropAtom _ _)           = H.Bottom
 terminate (Next True _)            = H.Top
 terminate (Next False _)           = H.Bottom
-terminate (And phis)               = H.And (fmap terminate phis)
-terminate (Or phis)                = H.Or (fmap terminate phis)
+terminate (And phi psi)            = H.And (terminate phi) (terminate psi)
+terminate (Or phi psi)             = H.Or (terminate phi) (terminate psi)
 terminate (Implies phi psi)        = H.Implies (terminate phi) (terminate psi)
 terminate (Not phi)                = H.Not (terminate phi)
 terminate Bottom                   = H.Bottom
@@ -104,22 +112,22 @@ simplifyNext (G.Next w phi)       = pushNext w phi where
   pushNext w (NextN w' k phi)      = G.Next w (NextN w' k phi)
   pushNext w (UntilN _ 0 _ psi)    = G.Top
   pushNext w (UntilN w' k phi psi) = G.Next w (UntilN w' k phi psi)
-  pushNext w (And phis)            = G.And (fmap (pushNext w) phis)
-  pushNext w (Or phis)             = G.Or (fmap (pushNext w) phis)
-  pushNext w (Implies a b)         = G.Implies (pushNext w a) (pushNext w b)
-  pushNext w (Not a)               = G.Not (pushNext w a)
+  pushNext w (And phi psi)         = G.And (pushNext w phi) (pushNext w psi)
+  pushNext w (Or phi psi)          = G.Or (pushNext w phi) (pushNext w psi)
+  pushNext w (Implies phi psi)     = G.Implies (pushNext w phi) (pushNext w psi)
+  pushNext w (Not phi)             = G.Not (pushNext w phi)
   pushNext _ Bottom                = G.Bottom
   pushNext _ Top                   = G.Top
-  pushNext _ (PropEq rel a b)      = G.PropEq rel a b
-  pushNext w (PropAtom c a)        = G.Next w (PropAtom c a)
+  pushNext _ (PropEq rel t v)      = G.PropEq rel t v
+  pushNext w (PropAtom c cs)       = G.Next w (PropAtom c cs)
   pushNext w (PropForall x phi)    = G.PropForall x (pushNext w phi)
-simplifyNext (G.And phis)         = G.And (fmap simplifyNext phis)
-simplifyNext (G.Or phis)          = G.Or (fmap simplifyNext phis)
-simplifyNext (G.Implies a b)      = G.Implies (simplifyNext a) (simplifyNext b)
+simplifyNext (G.And phi psi)       = G.And (simplifyNext phi) (simplifyNext psi)
+simplifyNext (G.Or phi psi)        = G.Or (simplifyNext phi) (simplifyNext psi)
+simplifyNext (G.Implies phi psi)   = G.Implies (simplifyNext phi) (simplifyNext psi)
 simplifyNext (G.Not phi)          = G.Not (simplifyNext phi)
 simplifyNext G.Bottom             = G.Bottom
 simplifyNext G.Top                = G.Top
-simplifyNext (G.PropEq rel a b)   = G.PropEq rel a b
+simplifyNext (G.PropEq rel t v)   = G.PropEq rel t v
 simplifyNext (G.PropForall x phi) = G.PropForall x (simplifyNext phi)
 
 
@@ -128,51 +136,45 @@ simplifyFragment :: Eq ty => GuardedFormula ty -> GuardedFormula ty
 simplifyFragment phi = go (findAtoms phi mempty) phi where
   go :: Eq ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
   go _ (G.Next w phi) = G.Next w phi
-  go atoms (G.And phis) =
-    let phis' = fmap (go atoms) phis in
-    normaliseFragment atoms (G.And phis')
-  go atoms (G.Or phis) =
-    let phis' = fmap (go atoms) phis in
-    normaliseFragment atoms (G.Or phis')
-  go atoms (G.Implies a b) =
-    let a' = go atoms a
-        b' = go atoms b
-    in
-    normaliseFragment atoms (G.Implies a' b')
+  go atoms (G.And phi psi) =
+    normaliseFragment atoms (G.And (go atoms phi) (go atoms psi))
+  go atoms (G.Or phi psi) =
+    normaliseFragment atoms (G.Or (go atoms phi) (go atoms psi))
+  go atoms (G.Implies phi psi) =
+    normaliseFragment atoms (G.Implies (go atoms phi) (go atoms psi))
   go atoms (G.Not phi) =
-    let phi' = go atoms phi in
-    normaliseFragment atoms (G.Not phi')
+    normaliseFragment atoms (G.Not (go atoms phi))
   go _ G.Bottom = G.Bottom
   go _ G.Top = G.Top
-  go _ (G.PropEq rel a b) = G.PropEq rel a b
+  go _ (G.PropEq rel t v) = G.PropEq rel t v
   go atoms (G.PropForall x phi) = G.PropForall x (go atoms phi)
 
 
 fromGuarded :: GuardedFormula ty -> Maybe HomogeneousFormula
 fromGuarded = go Set.empty where
   go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe HomogeneousFormula
-  go bound (G.Next w phi)             = Nothing
-  go bound (G.And phis)               = H.And <$> traverse (go bound) phis
-  go bound (G.Or phis)                = H.Or <$> traverse (go bound) phis
-  go bound (G.Implies a b)            = H.Implies <$> go bound a <*> go bound b
-  go bound (G.Not phi)                = H.Not <$> go bound phi
-  go bound G.Bottom                   = Just H.Bottom
-  go bound G.Top                      = Just H.Top
-  go bound (G.PropEq rel (Const a) b) = Just (H.PropEq rel (Const a) b)
-  go bound (G.PropEq rel (Var x) b)
-                | Set.member x bound  = Just (H.PropEq rel (Var x) b)
-  go bound (G.PropEq rel (Var x) b) = Nothing
-  go bound (G.PropForall x phi) = H.PropForall x <$> go (Set.insert x bound) phi
+  go bound (G.Next w phi)              = Nothing
+  go bound (G.And phi psi)             = H.And <$> go bound phi <*> go bound psi
+  go bound (G.Or phi psi)              = H.Or <$> go bound phi <*> go bound psi
+  go bound (G.Implies phi psi)         = H.Implies <$> go bound phi <*> go bound psi
+  go bound (G.Not phi)                 = H.Not <$> go bound phi
+  go bound G.Bottom                    = Just H.Bottom
+  go bound G.Top                       = Just H.Top
+  go bound (G.PropEq rel (Const v') v) = Just (H.PropEq rel (Const v') v)
+  go bound (G.PropEq rel (Var x) v)
+                | Set.member x bound   = Just (H.PropEq rel (Var x) v)
+  go bound (G.PropEq rel (Var x) _)    = Nothing
+  go bound (G.PropForall x phi)        = H.PropForall x <$> go (Set.insert x bound) phi
 
 simplifyHomogeneous' :: GuardedFormula ty -> GuardedFormula ty
 simplifyHomogeneous' (G.Next w phi)       = G.Next w phi
-simplifyHomogeneous' (G.And phis)         = G.And (fmap simplifyHomogeneous phis)
-simplifyHomogeneous' (G.Or phis)          = G.Or (fmap simplifyHomogeneous phis)
-simplifyHomogeneous' (G.Implies a b)      = G.Implies (simplifyHomogeneous a) (simplifyHomogeneous b)
+simplifyHomogeneous' (G.And phi psi)      = G.And (simplifyHomogeneous phi) (simplifyHomogeneous psi)
+simplifyHomogeneous' (G.Or phi psi)       = G.Or (simplifyHomogeneous phi) (simplifyHomogeneous psi)
+simplifyHomogeneous' (G.Implies phi psi)  = G.Implies (simplifyHomogeneous phi) (simplifyHomogeneous psi)
 simplifyHomogeneous' (G.Not phi)          = G.Not (simplifyHomogeneous' phi)
 simplifyHomogeneous' G.Bottom             = G.Bottom
 simplifyHomogeneous' G.Top                = G.Top
-simplifyHomogeneous' (G.PropEq rel a b)   = G.PropEq rel a b
+simplifyHomogeneous' (G.PropEq rel t v)   = G.PropEq rel t v
 simplifyHomogeneous' (G.PropForall x phi) = G.PropForall x (simplifyHomogeneous' phi)
 
 simplifyHomogeneous :: GuardedFormula ty -> GuardedFormula ty
@@ -181,20 +183,18 @@ simplifyHomogeneous (fromGuarded -> Just g) =
 simplifyHomogeneous phi = simplifyHomogeneous' phi
 
 -- | Applies the following equivalences recursively:
---   ☐ ⊤ = ⊤
---   ☐ ⊥ = ⊥
---   ♢ ⊤ = ⊤
---   ♢ ⊥ = ⊥
---   φ | ⊤ = ⊤
---   φ | ⊥ = φ
---   (∧) [φ₁, ..., ⊤, ..., φₙ] = (∧) [φ₁, ..., φₙ]
---   (∧) [φ₁, ..., ⊥, ..., φₙ] = ⊥
---   (∧) [] = ⊤
---   (∧) [φ] = φ
---   (∨) [φ₁, ..., ⊤, ..., φₙ] = ⊤
---   (∨) [φ₁, ..., ⊥, ..., φₙ] = (∨) [φ₁, ..., φₙ]
---   (∨) [] = ⊥
---   (∨) [φ] = φ
+--   ☐ ᪲ₖ ⊤ = ⊤
+--   ☐ᵏ ⊤ = ⊤
+--   ♢ᵏ ⊥ = ⊥
+--   φ |ᵏ ⊤ = ⊤
+--   φ ∧ ⊤ = φ
+--   ⊤ ∧ φ = φ
+--   φ ∧ ⊥ = ⊥
+--   ⊥ ∧ φ = ⊥
+--   ⊤ ∨ φ = ⊤
+--   φ ∨ ⊤ = ⊤
+--   ⊥ ∨ φ = φ
+--   φ ∨ ⊥ = φ
 --   ⊤ ⇒ φ = φ
 --   ⊥ ⇒ φ = ⊤
 --   φ ⇒ ⊤ = ⊤
@@ -206,63 +206,53 @@ simplifyHomogeneous phi = simplifyHomogeneous' phi
 --   (v = v') = ⊥ where v ≠ v'
 --   ∀x. ⊤ = ⊤
 --   ∀x. ⊥ = ⊥
+--   Assumes the formula has been stepped through.
 simplify :: Eq ty => Formula ty -> Formula ty
 simplify (Forall k phi) =
   case simplify phi of
     Top    -> Top
-    Bottom -> Bottom
     phi    -> Forall k phi
-simplify (ForallN 0 phi) = Top
 simplify (ForallN k phi) =
   case simplify phi of
     Top    -> Top
-    Bottom -> Bottom
     phi    -> ForallN k phi
-simplify (ExistsN w 0 phi) = Bottom
 simplify (ExistsN w k phi) =
   case simplify phi of
-    Top    -> Top
     Bottom -> Bottom
     phi    -> ExistsN w k phi
 simplify (Next w phi) = Next w (simplify phi)
-simplify (NextN w 0 phi) = simplify phi
 simplify (NextN w k phi) = NextN w k (simplify phi)
-simplify (UntilN _ 0 phi psi) = Top
 simplify (UntilN w k phi psi) =
   case simplify psi of
     Top    -> Top
     psi    -> UntilN w k (simplify phi) psi
-simplify (And phis) =
-  let phis' = filter (/= Top) (fmap simplify phis) in
-  case find (== Bottom) phis' of
-    Nothing ->
-      case phis' of
-        []    -> Top
-        [phi] -> phi
-        phis' -> And phis'
-    Just _ -> Bottom
-simplify (Or phis) =
-  let phis' = filter (/= Bottom) (fmap simplify phis) in
-  case find (== Top) phis' of
-    Nothing ->
-      case phis' of
-        []    -> Bottom
-        [phi] -> phi
-        phis' -> Or phis'
-    Just _ -> Top
-simplify (Implies a b) =
-  case (simplify a, simplify b) of
-    (Top, b)    -> b
-    (Bottom, b) -> Top
-    (_, Top)    -> Top
-    (a, Bottom) -> simplify (Not a)
-    (a, b)      -> Implies a b
-simplify (Not a) =
-  case simplify a of
-    Not a' -> a'
+simplify (And phi psi) =
+  case (simplify phi, simplify psi) of
+    (Bottom, psi) -> Bottom
+    (Top, psi) -> psi
+    (phi, Bottom) -> Bottom
+    (phi, Top) -> phi
+    (phi, psi) -> And phi psi
+simplify (Or phi psi) =
+  case (simplify phi, simplify psi) of
+    (Bottom, psi) -> psi
+    (Top, psi) -> Top
+    (phi, Bottom) -> phi
+    (phi, Top) -> Top
+    (phi, psi) -> Or phi psi
+simplify (Implies phi psi) =
+  case (simplify phi, simplify psi) of
+    (Top, psi)    -> psi
+    (Bottom, _)   -> Top
+    (_, Top)      -> Top
+    (phi, Bottom) -> simplify (Not phi)
+    (phi, psi)    -> Implies phi psi
+simplify (Not phi) =
+  case simplify phi of
+    Not phi' -> phi'
     Top    -> Bottom
     Bottom -> Top
-    a      -> Not a
+    phi    -> Not phi
 simplify Bottom = Bottom
 simplify Top = Top
 simplify (PropEq _ (Const v) v') | v == v' = Top

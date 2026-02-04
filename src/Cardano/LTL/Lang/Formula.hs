@@ -40,30 +40,27 @@ data PropTerm = Const PropValue | Var PropVarIdentifier deriving (Show, Eq, Ord)
 -- | Default name: c.
 data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 
+-- | Set of indices into relevant events.
+type Relevant = Set EventIndex
+
 -- v ::= <int> | "<string>"
 -- t ::= <int> | "<string>" | x
 -- c ::= "<string>" = t
 -- ty ::= <finite type>
 
--- φ{1} ::= ⊤ | ⊥ | A p c̄ | (φ{≥0})
--- φ{0} ::= ☐ₖ ᪲ φ{≥1}
---        | ☐ᵏ φ{≥1}
---        | ∀x. φ{≥0}
---        | t == v
---        | ♢ᵏ φ{≥1}
---        | ◯ φ{≥1}
---        | ◯ᵏ φ{≥1}
---        | φ{≥1} |ᵏ φ{≥1}
---        | (∨) φ̅̅{̅̅≥̅̅1̅}̅̅
---        | (∧) φ̅̅{̅̅≥̅̅1̅}̅̅
---        | ¬ φ{≥1}
---        | φ{≥1} ⇒ φ{≥1}
+-- φ{atom} ::= ⊤ | ⊥ | A p c̄ | (φ{≥universe})
+-- φ{eq} ::= t == v
+-- φ{prefix} ::= ◯ φ{≥atom} | ◯ᵏ φ{≥atom} | ♢ᵏ φ{≥atom} | ☐ ᪲ₖ φ{≥atom} | ☐ᵏ φ{≥atom} | ¬ φ{≥atom}
+-- φ{and} ::= φ{≥and} ∧ φ{>and}
+-- φ{or} ::= φ{≥or} ∨ φ{>or}
+-- φ{implies} ::= φ{>implies} ⇒ φ{≥implies}
+-- φ{universe} ::= ∀x. φ{≥universe} | φ{≥atom} \|ᵏ φ{≥atom}
 
 -- | Default name: φ.
 -- | A type of Linear Temporal Logic formulas over a base type ty.
 data Formula ty =
    ------------ Temporal -------------
-     -- | ☐ₖ ᪲ φ ≡ φ ∧ ◯ᵏ (☐ₖ ᪲)
+     -- | ☐ ᪲ₖ φ ≡ φ ∧ ◯ (◯ᵏ (☐ ᪲ₖ))
      Forall Word (Formula ty)
      -- | ☐ⁿ φ
      --   ☐⁰ φ ≡ ⊤
@@ -87,12 +84,10 @@ data Formula ty =
 
 
    ------------ Connective -------------
-     -- | (∨) φ̄, such that
-     -- | (∨) [] ≡ ⊥
-   | Or [Formula ty]
+   | Or (Formula ty) (Formula ty)
      -- | (∧) φ̄, such that
      -- | (∧) [] ≡ ⊤
-   | And [Formula ty]
+   | And (Formula ty) (Formula ty)
      -- | ¬ φ
    | Not (Formula ty)
      -- | φ ⇒ ψ
@@ -123,8 +118,8 @@ relevant = go mempty where
   go acc (Next _ phi) = go acc phi
   go acc (NextN _ _ phi) = go acc phi
   go acc (UntilN _ _ phi psi) = go (go acc phi) psi
-  go acc (Or phis) = foldl' go acc phis
-  go acc (And phis) = foldl' go acc phis
+  go acc (Or phi psi) = go (go acc phi) psi
+  go acc (And phi psi) = go (go acc phi) psi
   go acc (Not phi) = go acc phi
   go acc (Implies phi psi) = go (go acc phi) psi
   go acc Top = acc
@@ -135,7 +130,7 @@ relevant = go mempty where
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
 -- (t̄ ⊧ ∀x. φ) ⇔ (∀x. (t̄ ⊧ φ))
--- (t̄ ⊧ ☐ₖ ᪲ φ) ⇔ (t̄ ⊧ φ ∧ ◯ᵏ (☐ₖ ᪲))
+-- (t̄ ⊧ ☐ ᪲ₖ φ) ⇔ (t̄ ⊧ φ ∧ ◯ (◯ᵏ (☐ ᪲ₖ)))
 -- (t̄ ⊧ ☐⁰ φ) ⇔ ⊤
 -- (t̄ ⊧ ☐¹⁺ᵏ φ) ⇔ (t̄ ⊧ φ ∧ ◯ (☐ᵏ φ))
 -- (t̄ ⊧ ♢⁰ φ) ⇔ ⊥

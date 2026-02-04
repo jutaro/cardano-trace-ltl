@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Cardano.LTL.Pretty (
-    Lvl(..)
+    Prec(..)
   , prettyPropValue
   , prettyPropKeyValueList
   , prettyPropTerm
@@ -10,15 +10,16 @@ module Cardano.LTL.Pretty (
   , prettyFormula) where
 
 import           Cardano.LTL.Lang.Formula
-import           Data.List           (foldl')
-import qualified Data.Set            as Set
-import           Data.Text           (Text, intercalate, pack)
-import Data.Maybe (fromMaybe)
-
-data Lvl = Z | O deriving (Show, Eq, Ord)
+import           Cardano.LTL.Prec         (Prec)
+import qualified Cardano.LTL.Prec         as Prec
+import           Data.List                (foldl')
+import           Data.Maybe               (fromMaybe)
+import qualified Data.Set                 as Set
+import           Data.Text                (Text, intercalate, pack)
+import qualified Data.Text                as Text
 
 -- | Add parentheses when an inner precedence exceeds the outer one.
-surround :: Lvl -> Lvl -> Text -> Text
+surround :: Prec -> Prec -> Text -> Text
 surround outer inner str | outer <= inner = str
 surround _ _ str = "(" <> str <> ")"
 
@@ -84,7 +85,7 @@ wordToXscript f x =
   then
     x
   else
-    let xs = wordToSuperscript d in
+    let xs = wordToXscript f d in
     xs <> x
 
 wordToSuperscript :: Word -> Text
@@ -95,20 +96,32 @@ wordToSubscript = wordToXscript mbSubscript0to9
 
 
 -- | Pretty-print a `Formula` using unicode operators.
-prettyFormula :: Show a => Formula a -> Lvl -> Text
-prettyFormula (Forall k phi) lvl = surround lvl Z $ "☐" <> wordToSuperscript k <> " ᪲ " <> prettyFormula phi O
-prettyFormula (ForallN k phi) lvl = surround lvl Z $ "☐" <> wordToSuperscript k <> " " <> prettyFormula phi O
-prettyFormula (ExistsN w k phi) lvl = surround lvl Z $ weak w "♢" <> wordToSuperscript k <> " " <> prettyFormula phi O
-prettyFormula (Next w phi) lvl = surround lvl Z $ weak w "◯" <> " " <> prettyFormula phi O
-prettyFormula (NextN w k phi) lvl = surround lvl Z $ weak w "◯" <> wordToSuperscript k <> " " <> prettyFormula phi O
-prettyFormula (UntilN w k phi psi) lvl = surround lvl Z $
-  prettyFormula phi O <> " " <> weak w "|" <> wordToSuperscript k <> " " <> prettyFormula psi O
-prettyFormula (Implies phi psi) lvl = surround lvl Z $ prettyFormula phi O <> " " <> "⇒" <> " " <> prettyFormula psi O
-prettyFormula (Or phis) lvl = surround lvl Z $ "(∨)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)
-prettyFormula (And phis) lvl = surround lvl Z $ "(∧)" <> foldl' (<>) "" (fmap (\x -> " " <> prettyFormula x O) phis)
-prettyFormula (Not phi) lvl = surround lvl Z $ "¬ " <> prettyFormula phi O
-prettyFormula Top lvl = surround lvl O "⊤"
-prettyFormula Bottom lvl = surround lvl O "⊥"
-prettyFormula (PropForall x phi) lvl = surround lvl Z $ "∀" <> x <> ". " <> prettyFormula phi Z
-prettyFormula (PropAtom c is) lvl = surround lvl O $ pack (show c) <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
-prettyFormula (PropEq _ t v) lvl = surround lvl Z $ prettyPropTerm t <> " = " <> prettyPropValue v
+prettyFormula :: Show a => Formula a -> Prec -> Text
+prettyFormula (Forall k phi) lvl = surround lvl Prec.Prefix $
+  "☐ ᪲" <> (if k == 0 then "" else wordToSubscript k) <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (ForallN k phi) lvl = surround lvl Prec.Prefix $
+  "☐" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (ExistsN w k phi) lvl = surround lvl Prec.Prefix $
+  weak w "♢" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (Next w phi) lvl = surround lvl Prec.Prefix $
+  weak w "◯" <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (NextN w k phi) lvl = surround lvl Prec.Prefix $
+  weak w "◯" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (UntilN w k phi psi) lvl = surround lvl Prec.Universe $
+  prettyFormula phi Prec.Atom <> " " <> weak w "|" <> wordToSuperscript k <> " " <> prettyFormula psi Prec.Atom
+prettyFormula (Implies phi psi) lvl = surround lvl Prec.Implies $
+  prettyFormula phi Prec.Or <> " " <> "⇒" <> " " <> prettyFormula psi Prec.Implies
+prettyFormula (Or phi psi) lvl = surround lvl Prec.Or $
+  prettyFormula phi Prec.Or <> " " <> "∨" <> " " <> prettyFormula psi Prec.And
+prettyFormula (And phi psi) lvl = surround lvl Prec.And $
+  prettyFormula phi Prec.And <> " " <> "∧" <> " " <> prettyFormula psi Prec.Prefix
+prettyFormula (Not phi) lvl = surround lvl Prec.Prefix $
+  "¬ " <> prettyFormula phi Prec.Atom
+prettyFormula Top lvl = surround lvl Prec.Atom "⊤"
+prettyFormula Bottom lvl = surround lvl Prec.Atom "⊥"
+prettyFormula (PropForall x phi) lvl = surround lvl Prec.Universe $
+  "∀" <> x <> ". " <> prettyFormula phi Prec.Universe
+prettyFormula (PropAtom c is) lvl = surround lvl Prec.Atom $
+  Text.show c <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
+prettyFormula (PropEq _ t v) lvl = surround lvl Prec.Eq $
+  prettyPropTerm t <> " = " <> prettyPropValue v

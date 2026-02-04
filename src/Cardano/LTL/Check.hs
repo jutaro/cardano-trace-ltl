@@ -34,8 +34,8 @@ checkFormula :: Set PropVarIdentifier -> Formula ty -> [Error]
 checkFormula bound (Forall _ phi) = checkFormula bound phi
 checkFormula bound (ForallN _ phi) = checkFormula bound phi
 checkFormula bound (ExistsN _ _ phi) = checkFormula bound phi
-checkFormula bound (And phis) = foldl' (++) [] (fmap (checkFormula bound) phis)
-checkFormula bound (Or phis) = foldl' (++) [] (fmap (checkFormula bound) phis)
+checkFormula bound (And phi psi) = checkFormula bound phi ++ checkFormula bound psi
+checkFormula bound (Or phi psi) = checkFormula bound phi ++ checkFormula bound psi
 checkFormula bound (Not phi) = checkFormula bound phi
 checkFormula _ Bottom = []
 checkFormula _ Top = []
