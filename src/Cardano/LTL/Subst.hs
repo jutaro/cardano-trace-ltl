@@ -7,6 +7,8 @@ module Cardano.LTL.Subst (
 import           Cardano.LTL.Lang.Formula
 import qualified Data.Set                 as Set
 
+-- The file concerns capture-avoiding substitution of `PropValue` for `PropVarIdentifier` in formulas and their constituents.
+
 -- | t[v / x]
 substPropTerm :: PropValue -> PropVarIdentifier -> PropTerm -> PropTerm
 substPropTerm v x (Var x') | x == x' = Const v

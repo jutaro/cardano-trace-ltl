@@ -6,6 +6,8 @@ module Cardano.LTL.Occurs (
 
 import           Cardano.LTL.Lang.Formula
 
+-- The file concerns checking free variable occurrence in a formula.
+
 -- | Check if the `PropVarIdentifier` occurs freely in the `PropTerm`.
 occursPropTerm :: PropVarIdentifier -> PropTerm -> Bool
 occursPropTerm _ (Const _) = False

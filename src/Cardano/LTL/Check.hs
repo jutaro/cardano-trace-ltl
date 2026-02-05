@@ -11,6 +11,8 @@ import           Data.Set                 (Set, insert, member)
 import qualified Data.Set                 as Set
 import           Data.Text                (Text)
 
+-- The file concerns checking syntactic correctness of formulas.
+
 data Error = UnboundPropVarIdentifier PropVarIdentifier deriving (Show, Eq)
 
 -- | Verify the given parameter variable is bound in the current context.
