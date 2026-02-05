@@ -1,6 +1,5 @@
 module Cardano.LTL.Lang.Internal.Fragment(findAtoms, normaliseFragment) where
 
-import           Cardano.Data.Strict
 import           Cardano.LTL.Lang.Formula
 import           Cardano.LTL.Lang.Internal.Fragment0      as F0
 import           Cardano.LTL.Lang.Internal.Fragment1      as F1
@@ -14,7 +13,7 @@ import           Prelude                                  hiding (abs, and, not,
                                                            or)
 
 -- | Try to retract `GuardedFormula` into `Frag0` taking the atom to be the given (x = v).
-retract :: Eq ty => Pair PropVarIdentifier PropValue -> GuardedFormula ty -> Maybe (Frag0 ty)
+retract :: Eq ty => (PropVarIdentifier, PropValue) -> GuardedFormula ty -> Maybe (Frag0 ty)
 retract _ (G.Next {}) = Nothing
 retract abs (G.And a b) = F0.And <$> retract abs a <*> retract abs b
 retract abs (G.Or a b) = F0.Or <$> retract abs a <*> retract abs b
@@ -23,7 +22,7 @@ retract abs (G.Not a) = F0.Not <$> retract abs a
 retract _ G.Top = Just F0.Top
 retract _ G.Bottom = Just F0.Bottom
 retract _ (G.PropForall {}) = Nothing
-retract (Pair x v) (G.PropEq rel (Var x') v') | x == x' && v == v' = Just (F0.Atom rel)
+retract (!x, !v) (G.PropEq rel (Var x') v') | x == x' && v == v' = Just (F0.Atom rel)
 retract _ (G.PropEq {}) = Nothing
 
 -- | Evaluate `Frag0` to `Frag1`
@@ -46,14 +45,14 @@ toFrag2 (F1.And a b)    = F2.and (toFrag2 a) (toFrag2 b)
 toFrag2 (F1.Or a b)     = F2.or (toFrag2 a) (toFrag2 b)
 
 -- | Embed `Frag2` into `GuardedFormula` interpretting the given pair as (x = v).
-toGuardedFormula :: Pair PropVarIdentifier PropValue -> Frag2 ty -> GuardedFormula ty
-toGuardedFormula (Pair x v) (F2.Atom ty)    = G.PropEq ty (Var x) v
-toGuardedFormula (Pair x v) (F2.NotAtom ty) = G.Not (G.PropEq ty (Var x) v)
-toGuardedFormula _ F2.Bottom                = G.Bottom
-toGuardedFormula _ F2.Top                   = G.Top
+toGuardedFormula :: (PropVarIdentifier, PropValue) -> Frag2 ty -> GuardedFormula ty
+toGuardedFormula (!x, !v) (F2.Atom ty)    = G.PropEq ty (Var x) v
+toGuardedFormula (!x, !v) (F2.NotAtom ty) = G.Not (G.PropEq ty (Var x) v)
+toGuardedFormula _ F2.Bottom              = G.Bottom
+toGuardedFormula _ F2.Top                 = G.Top
 
 -- | Find all `Frag0` atoms in the form of (x = v) in the formula "now".
-findAtoms :: GuardedFormula ty -> Set (Pair PropVarIdentifier PropValue) -> Set (Pair PropVarIdentifier PropValue)
+findAtoms :: GuardedFormula ty -> Set (PropVarIdentifier, PropValue) -> Set (PropVarIdentifier, PropValue)
 findAtoms (G.Next _) set             = set
 findAtoms (G.And phi psi) set        = findAtoms phi (findAtoms psi set)
 findAtoms (G.Or phi psi) set         = findAtoms phi (findAtoms psi set)
@@ -61,14 +60,14 @@ findAtoms (G.Implies phi psi) set    = findAtoms phi (findAtoms psi set)
 findAtoms (G.Not phi) set            = findAtoms phi set
 findAtoms G.Bottom set               = set
 findAtoms G.Top set                  = set
-findAtoms (G.PropEq _ (Var x) v) set = Set.insert (Pair x v) set
+findAtoms (G.PropEq _ (Var x) v) set = Set.insert (x, v) set
 findAtoms (G.PropEq {}) set          = set
 findAtoms (G.PropForall _ phi) set   = findAtoms phi set
 
 -- | Given a set of propositional equalities {xᵢ = vᵢ}ᵢ and a formula, if the formula can be retracted into
 --   `Frag0` where the atom is taken to be one of the equalities (xᵢ = vᵢ), computes normal form in `Frag0` and
 --   embeds the result back into `Formula`. By construction the formula can be retracted for at most one (xᵢ = vᵢ) from the set.
-normaliseFragment :: Ord ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
+normaliseFragment :: Ord ty => Set (PropVarIdentifier, PropValue) -> GuardedFormula ty -> GuardedFormula ty
 normaliseFragment set phi = go (Set.toList set) where
  go [] = phi
  go (atom : atoms) = maybe (go atoms) (toGuardedFormula atom . toFrag2 . toFrag1) (retract atom phi)

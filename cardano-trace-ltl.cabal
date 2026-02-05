@@ -15,9 +15,7 @@ common warnings
 library
     import:           warnings
     exposed-modules:
-                    , Cardano.Data.Strict
-
-                    , Cardano.LTL.Check
+                      Cardano.LTL.Check
                     , Cardano.LTL.Lang.Formula
                     , Cardano.LTL.Lang.Prec
                     , Cardano.LTL.Lang.Internal.Fragment

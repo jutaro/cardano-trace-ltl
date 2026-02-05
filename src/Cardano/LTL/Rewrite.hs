@@ -7,7 +7,6 @@ module Cardano.LTL.Rewrite(
   rewriteIdentity
   ) where
 
-import           Cardano.Data.Strict
 import           Cardano.LTL.Lang.Formula
 import           Cardano.LTL.Lang.Internal.Fragment           (findAtoms,
                                                                normaliseFragment)
@@ -23,7 +22,7 @@ import           Prelude                                      hiding (lookup)
 -- | Rewrite the formula by applying the fragment retraction & normalisation recursively.
 rewriteFragment :: Ord ty => GuardedFormula ty -> GuardedFormula ty
 rewriteFragment phi = go (findAtoms phi mempty) phi where
-  go :: Ord ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
+  go :: Ord ty => Set (PropVarIdentifier, PropValue) -> GuardedFormula ty -> GuardedFormula ty
   go _ (G.Next phi) = G.Next phi
   go atoms (G.And phi psi) =
     normaliseFragment atoms (G.And (go atoms phi) (go atoms psi))
@@ -80,21 +79,26 @@ rewriteHomogeneous phi = go phi where
 --   (v = v') = ⊥ where v ≠ v'
 --   ∀x. ⊤ = ⊤
 --   ∀x. ⊥ = ⊥
+--   Additionally, unfolds base-cases of finite temporal operators.
 rewriteIdentity :: Eq ty => Formula ty -> Formula ty
 rewriteIdentity (Forall k phi) =
   case rewriteIdentity phi of
     Top -> Top
     phi -> Forall k phi
+rewriteIdentity (ForallN 0 phi) = rewriteIdentity (unfoldForallN 0 phi)
 rewriteIdentity (ForallN k phi) =
   case rewriteIdentity phi of
     Top -> Top
     phi -> ForallN k phi
+rewriteIdentity (ExistsN 0 phi) = rewriteIdentity (unfoldExistsN 0 phi)
 rewriteIdentity (ExistsN k phi) =
   case rewriteIdentity phi of
     Bottom -> Bottom
     phi    -> ExistsN k phi
 rewriteIdentity (Next phi) = Next (rewriteIdentity phi)
+rewriteIdentity (NextN 0 phi) = rewriteIdentity (unfoldNextN 0 phi)
 rewriteIdentity (NextN k phi) = NextN k (rewriteIdentity phi)
+rewriteIdentity (UntilN 0 phi psi) = rewriteIdentity (unfoldUntilN 0 phi psi)
 rewriteIdentity (UntilN k phi psi) =
   case rewriteIdentity psi of
     Top -> Top

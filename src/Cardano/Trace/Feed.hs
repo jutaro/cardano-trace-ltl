@@ -11,11 +11,12 @@ import           Cardano.Logging.Types.TraceMessage
 
 import           Prelude                            hiding (read)
 
-import           Cardano.Data.Strict                (SnocList (..), (<>>))
 import           Cardano.LTL.Lang.Formula           (EventIndex)
 import           Data.Aeson                         (encode, throwDecodeStrict)
 import qualified Data.ByteString.Char8              as BChar8
 import           Data.List                          (sortBy)
+import           Data.Sequence                      (Seq, (|>))
+import qualified Data.Foldable                      as Foldable
 import           Data.Time.Clock                    (UTCTime)
 import           Data.Time.Clock.POSIX              (utcTimeToPOSIXSeconds)
 import           Data.Word                          (Word64)
@@ -43,9 +44,9 @@ type TemporalEventDurationMicrosec = Word64
 
 -- | Fill in one temporal event.
 --   Returns the event, the starting time boundary of the next temporal event and the rest of the messages.
-fill :: EventIndex -> TemporalEventDurationMicrosec -> [TraceMessage] -> Word64 -> [TraceMessage] -> (TemporalEvent, Word64, [TraceMessage], EventIndex)
-fill idx duration acc t (x : xs) | utcToMicroseconds x.tmsgAt  <= t + duration = fill idx duration (x : acc) t xs
-fill idx duration acc t rest = (TemporalEvent t (reverse acc) idx, t + duration, rest, idx + 1)
+fill :: EventIndex -> TemporalEventDurationMicrosec -> Seq TraceMessage -> Word64 -> [TraceMessage] -> (TemporalEvent, Word64, [TraceMessage], EventIndex)
+fill idx duration acc t (x : xs) | utcToMicroseconds x.tmsgAt  <= t + duration = fill idx duration (acc |> x) t xs
+fill idx duration acc t rest = (TemporalEvent t (Foldable.toList acc) idx, t + duration, rest, idx + 1)
 
 -- | Slice up the trace messages into consequtive temporal events.
 slice :: TemporalEventDurationMicrosec -> [TraceMessage] -> [TemporalEvent]
@@ -54,7 +55,7 @@ slice duration msg@(x : _) = go 0 (utcToMicroseconds (tmsgAt x)) msg where
   go :: EventIndex -> Word64 -> [TraceMessage] -> [TemporalEvent]
   go _ _ [] = []
   go idx t msg =
-    let (e, !t', !msg', !idx') = fill idx duration [] t msg in
+    let (e, !t', !msg', !idx') = fill idx duration mempty t msg in
     e : go idx' t' msg'
 
 -- | We assume its possible for the trace messages to come out of order. Remedy that here.
@@ -89,7 +90,7 @@ data TemporalEventBuilderSt = TemporalEventBuilderSt {
   -- | The timestamp of the beginning of the next issued temporal event.
   nextBeg      :: !Word64,
   -- | The accumulation of trace messages to be issued in the next issued temporal event.
-  nextMsgs     :: !(SnocList TraceMessage),
+  nextMsgs     :: !(Seq TraceMessage),
   -- | Whether the file of trace messages has ended.
   nextTerminal :: !Bool
 }
@@ -149,7 +150,7 @@ readS filename duration = do
          { nextBuffered = Just firstMsg
          , nextIdx = 0
          , nextBeg = utcToMicroseconds firstMsg.tmsgAt
-         , nextMsgs = Lin
+         , nextMsgs = mempty
          , nextTerminal = False
          }
   where
@@ -159,14 +160,14 @@ readS filename duration = do
     go _ TemporalEventBuilderSt{nextTerminal = True} = pure (Left ())
     go handle TemporalEventBuilderSt{nextBuffered = Nothing, ..} = readLine handle >>= \case
       Nothing -> pure $ Right $
-        TemporalEvent nextBeg (nextMsgs <>> []) nextIdx
+        TemporalEvent nextBeg (Foldable.toList nextMsgs) nextIdx
           :>
-        TemporalEventBuilderSt Nothing (nextIdx + 1) nextBeg Lin True
+        TemporalEventBuilderSt Nothing (nextIdx + 1) nextBeg mempty True
       Just msg ->
         go handle (TemporalEventBuilderSt (Just msg) nextIdx nextBeg nextMsgs False)
     go handle TemporalEventBuilderSt{nextBuffered = Just msg, ..} | utcToMicroseconds msg.tmsgAt <= nextBeg + duration =
-        go handle (TemporalEventBuilderSt Nothing nextIdx nextBeg (nextMsgs :< msg) False)
+        go handle (TemporalEventBuilderSt Nothing nextIdx nextBeg (nextMsgs |> msg) False)
     go _ TemporalEventBuilderSt{nextBuffered = Just msg, ..} = pure $ Right $
-      TemporalEvent nextBeg (nextMsgs <>> []) nextIdx
+      TemporalEvent nextBeg (Foldable.toList nextMsgs) nextIdx
         :>
-      TemporalEventBuilderSt (Just msg) (nextIdx + 1) (nextBeg + duration) Lin False
+      TemporalEventBuilderSt (Just msg) (nextIdx + 1) (nextBeg + duration) mempty False
