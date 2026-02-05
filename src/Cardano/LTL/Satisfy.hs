@@ -33,6 +33,9 @@ import           Debug.Trace                                  (trace)
 #endif
 
 
+-- This file concerns checking formula satisfiability against some input.
+-- The input can be either pure and finite foldable (e.g. a list, cf. `satisfies`)
+--   or effectful and potentially infinite (i.e. a Stream, cf. `satisfiesS`).
 
 -- | The result of checking satisfaction of a formula against a timeline.
 -- | If unsatisfied, stores points in the timeline "relevant" to the formula.

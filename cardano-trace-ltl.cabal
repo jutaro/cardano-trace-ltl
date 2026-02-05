@@ -19,6 +19,7 @@ library
 
                     , Cardano.LTL.Check
                     , Cardano.LTL.Lang.Formula
+                    , Cardano.LTL.Lang.Prec
                     , Cardano.LTL.Lang.Internal.Fragment
                     , Cardano.LTL.Lang.Internal.Fragment0
                     , Cardano.LTL.Lang.Internal.Fragment1
@@ -26,7 +27,6 @@ library
                     , Cardano.LTL.Lang.Internal.GuardedFormula
                     , Cardano.LTL.Lang.Internal.HomogeneousFormula
                     , Cardano.LTL.Occurs
-                    , Cardano.LTL.Prec
                     , Cardano.LTL.Pretty
                     , Cardano.LTL.Progress
                     , Cardano.LTL.Rewrite

@@ -14,6 +14,12 @@ import           Prelude                                      hiding (lookup)
 import qualified Data.Text                                    as Text
 #endif
 
+-- This file concerns algorithmically checking formula satisfiability.
+--  There are two parts:
+--    *) (t t̄ ⊧ φ) for producing a new formula φ' such that the two are equi-satisfiable,
+--          but the new one operates on the suffix of the original context: (t̄ ⊧ φ')
+--    *) (∅ ⊧ φ) for checking satisfiability against the empty context.
+
 -- | This is an algorithm for representing
 --   (t t̄ ⊧ φ) in terms of ∃φ'. (t̄ ⊧ φ')
 next :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty

@@ -5,7 +5,7 @@ module Main(main) where
 
 import           Cardano.LTL.Check        (Error (..), checkFormula)
 import           Cardano.LTL.Lang.Formula
-import qualified Cardano.LTL.Prec         as Prec
+import qualified Cardano.LTL.Lang.Prec    as Prec
 import           Cardano.LTL.Pretty       (prettyFormula)
 import           Cardano.LTL.Satisfy      (SatisfactionResult (..), satisfies)
 import           Data.Map                 (singleton)

@@ -11,7 +11,7 @@ import           Cardano.LTL.Satisfy
 
 import           Prelude                            hiding (read)
 
-import qualified Cardano.LTL.Prec                   as Prec
+import qualified Cardano.LTL.Lang.Prec              as Prec
 import           Cardano.LTL.Pretty                 (prettyFormula)
 import           Cardano.Trace.Feed                 (Filename,
                                                      TemporalEvent (..),

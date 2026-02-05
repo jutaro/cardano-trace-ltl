@@ -17,6 +17,9 @@ import qualified Cardano.LTL.Lang.Internal.HomogeneousFormula as H
 import           Data.Set                                     (Set)
 import           Prelude                                      hiding (lookup)
 
+-- This file concerns applying rewrite rules to a formula.
+-- The rewrite rules must be logical identities, hence all rewrites here produce logically equivalent formulas.
+
 -- | Rewrite the formula by applying the fragment retraction & normalisation recursively.
 rewriteFragment :: Ord ty => GuardedFormula ty -> GuardedFormula ty
 rewriteFragment phi = go (findAtoms phi mempty) phi where

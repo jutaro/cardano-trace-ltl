@@ -10,8 +10,8 @@ module Cardano.LTL.Pretty (
   , prettyFormula) where
 
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Prec         (Prec)
-import qualified Cardano.LTL.Prec         as Prec
+import           Cardano.LTL.Lang.Prec    (Prec)
+import qualified Cardano.LTL.Lang.Prec    as Prec
 import qualified Data.Set                 as Set
 import           Data.Text                (Text, intercalate, pack)
 import qualified Data.Text                as Text
