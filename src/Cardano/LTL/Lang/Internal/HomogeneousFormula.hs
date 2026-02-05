@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Cardano.LTL.Lang.Internal.HomogeneousFormula (
     HomogeneousFormula(..)
-  , toGuardedFormula, toFormula, values, substHomogeneousFormula, interp, quote, equiv) where
+  , toGuardedFormula, toFormula, values, substHomogeneousFormula, eval, quote, equiv, retract) where
 
-import           Cardano.LTL.Lang.Formula                 (Formula, PropTerm,
+import           Cardano.LTL.Lang.Formula                 (Formula, PropTerm (..),
                                                            PropValue,
                                                            PropVarIdentifier,
                                                            Relevance)
@@ -89,22 +89,22 @@ substHomogeneousFormula _ _ (PropEq rel (F.Var x') rhs) = PropEq rel (F.Var x') 
 substHomogeneousFormula v x (PropForall x' phi) | x /= x' = PropForall x' (substHomogeneousFormula v x phi)
 substHomogeneousFormula _ _ (PropForall x' phi) = PropForall x' phi
 
--- | Interpret the `HomogeneousFormula` onto `Bool`.
+-- | Evaluate the `HomogeneousFormula` onto `Bool`.
 --   This is the "interesting" part of the iso: `HomogeneousFormula` ≅ `Bool`
-interp :: HomogeneousFormula ty -> Bool
-interp (Or phi psi) = interp phi || interp psi
-interp (And phi psi) = interp phi && interp psi
-interp (Not phi) = not (interp phi)
-interp (Implies phi psi) = not (interp phi) || interp psi
-interp Bottom = False
-interp Top = True
-interp (PropEq _ (F.Const lhs) rhs) = lhs == rhs
-interp (PropEq _ (F.Var x) _) = error $ "interp: free variable " <> show x
+eval :: HomogeneousFormula ty -> Bool
+eval (Or phi psi) = eval phi || eval psi
+eval (And phi psi) = eval phi && eval psi
+eval (Not phi) = not (eval phi)
+eval (Implies phi psi) = not (eval phi) || eval psi
+eval Bottom = False
+eval Top = True
+eval (PropEq _ (F.Const lhs) rhs) = lhs == rhs
+eval (PropEq _ (F.Var x) _) = error $ "interp: free variable " <> show x
 -- ⟦∀x. φ⟧ <=> φ[☐/x] ∧ φ[v₁ / x] ∧ ... ∧ φ[vₖ / x] where v₁...vₖ is the set of values in φ which x can take.
-interp (PropForall x phi) = interp (substHomogeneousFormula Placeholder x phi) &&
+eval (PropForall x phi) = eval (substHomogeneousFormula Placeholder x phi) &&
   foldl' (&&) True (
     Set.toList (values x phi) <&> \v ->
-      interp (substHomogeneousFormula (Val v) x phi)
+      eval (substHomogeneousFormula (Val v) x phi)
   )
 
 -- | This is the "easy" part of the iso: `HomogeneousFormula` ≅ `Bool`
@@ -114,4 +114,20 @@ quote False = Bottom
 
 -- | Check equivalence of two `HomogeneousFormula`s.
 equiv :: HomogeneousFormula ty -> HomogeneousFormula ty -> Bool
-equiv = on (==) interp
+equiv = on (==) eval
+
+retract :: GuardedFormula ty -> Maybe (HomogeneousFormula ty)
+retract = go Set.empty where
+  go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe (HomogeneousFormula ty)
+  go _     (G.Next _)                  = Nothing
+  go bound (G.And phi psi)             = And <$> go bound phi <*> go bound psi
+  go bound (G.Or phi psi)              = Or <$> go bound phi <*> go bound psi
+  go bound (G.Implies phi psi)         = Implies <$> go bound phi <*> go bound psi
+  go bound (G.Not phi)                 = Not <$> go bound phi
+  go _     G.Bottom                    = Just Bottom
+  go _     G.Top                       = Just Top
+  go _     (G.PropEq rel (Const v') v) = Just (PropEq rel (Const v') v)
+  go bound (G.PropEq rel (Var x) v)
+                | Set.member x bound   = Just (PropEq rel (Var x) v)
+  go _     (G.PropEq _ (Var _) _)      = Nothing
+  go bound (G.PropForall x phi)        = PropForall x <$> go (Set.insert x bound) phi

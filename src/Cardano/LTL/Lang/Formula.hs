@@ -51,7 +51,7 @@ type Relevance ty = Set (EventIndex, ty)
 -- c ::= "<string>" = t
 -- ty ::= <finite type>
 
--- φ{atom} ::= ⊤ | ⊥ | A p c̄ | (φ{≥universe})
+-- φ{atom} ::= ⊤ | ⊥ | A ty c̄ | (φ{≥universe})
 -- φ{eq} ::= t == v
 -- φ{prefix} ::= ◯ φ{≥atom} | ◯ᵏ φ{≥atom} | ♢ᵏ φ{≥atom} | ☐ ᪲ₖ φ{≥atom} | ☐ᵏ φ{≥atom} | ¬ φ{≥atom}
 -- φ{and} ::= φ{≥and} ∧ φ{>and}
@@ -197,7 +197,6 @@ unfoldUntilN k phi psi =
 -- (t̄ ⊧ ⊤) ⇔ ⊤
 -- (t̄ ⊧ φ |⁰ ψ) ⇔ ⊥
 -- (t̄ ⊧ φ |¹⁺ᵏ ψ) ⇔ (t̄ ⊧ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ))
--- (∅ ⊧ A(p, c̄))   ⇔ ⊥
 -- (e _ ⊧ A(p, c̄)) ⇔ c̄ ⊆ props e   if ty e = p
 --                   ⊥             otherwise
 --

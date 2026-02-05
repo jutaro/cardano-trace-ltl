@@ -14,17 +14,17 @@ import           Prelude                                  hiding (abs, and, not,
                                                            or)
 
 -- | Try to retract `GuardedFormula` into `Frag0` taking the atom to be the given (x = v).
-toFrag0 :: Eq ty => Pair PropVarIdentifier PropValue -> GuardedFormula ty -> Maybe (Frag0 ty)
-toFrag0 _ (G.Next {}) = Nothing
-toFrag0 abs (G.And a b) = F0.And <$> toFrag0 abs a <*> toFrag0 abs b
-toFrag0 abs (G.Or a b) = F0.Or <$> toFrag0 abs a <*> toFrag0 abs b
-toFrag0 abs (G.Implies a b) = F0.Implies <$> toFrag0 abs a <*> toFrag0 abs b
-toFrag0 abs (G.Not a) = F0.Not <$> toFrag0 abs a
-toFrag0 _ G.Top = Just F0.Top
-toFrag0 _ G.Bottom = Just F0.Bottom
-toFrag0 _ (G.PropForall {}) = Nothing
-toFrag0 (Pair x v) (G.PropEq rel (Var x') v') | x == x' && v == v' = Just (F0.Atom rel)
-toFrag0 _ (G.PropEq {}) = Nothing
+retract :: Eq ty => Pair PropVarIdentifier PropValue -> GuardedFormula ty -> Maybe (Frag0 ty)
+retract _ (G.Next {}) = Nothing
+retract abs (G.And a b) = F0.And <$> retract abs a <*> retract abs b
+retract abs (G.Or a b) = F0.Or <$> retract abs a <*> retract abs b
+retract abs (G.Implies a b) = F0.Implies <$> retract abs a <*> retract abs b
+retract abs (G.Not a) = F0.Not <$> retract abs a
+retract _ G.Top = Just F0.Top
+retract _ G.Bottom = Just F0.Bottom
+retract _ (G.PropForall {}) = Nothing
+retract (Pair x v) (G.PropEq rel (Var x') v') | x == x' && v == v' = Just (F0.Atom rel)
+retract _ (G.PropEq {}) = Nothing
 
 -- | Evaluate `Frag0` to `Frag1`
 toFrag1 :: Frag0 ty -> Frag1 ty
@@ -71,4 +71,4 @@ findAtoms (G.PropForall _ phi) set   = findAtoms phi set
 normaliseFragment :: Ord ty => Set (Pair PropVarIdentifier PropValue) -> GuardedFormula ty -> GuardedFormula ty
 normaliseFragment set phi = go (Set.toList set) where
  go [] = phi
- go (atom : atoms) = maybe (go atoms) (toGuardedFormula atom . toFrag2 . toFrag1) (toFrag0 atom phi)
+ go (atom : atoms) = maybe (go atoms) (toGuardedFormula atom . toFrag2 . toFrag1) (retract atom phi)

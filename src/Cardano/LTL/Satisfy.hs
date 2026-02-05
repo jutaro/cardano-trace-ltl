@@ -18,7 +18,7 @@ import           Prelude                                      hiding (lookup)
 
 import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula,
                                                                forward)
-import           Cardano.LTL.Lang.Internal.HomogeneousFormula (interp)
+import           Cardano.LTL.Lang.Internal.HomogeneousFormula (eval)
 import           Cardano.LTL.Progress
 import           Data.IORef                                   (IORef,
                                                                modifyIORef')
@@ -69,7 +69,7 @@ handleNext (!n, !formula0) m =
 
 handleEnd :: (Ord ty, Show ty) => (Int, Formula ty) -> SatisfactionResult ty
 handleEnd (!n, !formula) =
-    if (interp . terminate) formula
+    if (eval . terminate) formula
     then Satisfied
     else Unsatisfied (relevance formula)
 

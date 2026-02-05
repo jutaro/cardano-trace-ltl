@@ -13,10 +13,8 @@ import           Cardano.LTL.Lang.Internal.Fragment           (findAtoms,
                                                                normaliseFragment)
 import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula)
 import qualified Cardano.LTL.Lang.Internal.GuardedFormula     as G
-import           Cardano.LTL.Lang.Internal.HomogeneousFormula (HomogeneousFormula)
 import qualified Cardano.LTL.Lang.Internal.HomogeneousFormula as H
 import           Data.Set                                     (Set)
-import qualified Data.Set                                     as Set
 import           Prelude                                      hiding (lookup)
 
 -- | Rewrite the formula by applying the fragment retraction & normalisation recursively.
@@ -38,26 +36,10 @@ rewriteFragment phi = go (findAtoms phi mempty) phi where
   go atoms (G.PropForall x phi) = G.PropForall x (go atoms phi)
 
 
-fromGuarded :: GuardedFormula ty -> Maybe (HomogeneousFormula ty)
-fromGuarded = go Set.empty where
-  go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe (HomogeneousFormula ty)
-  go _     (G.Next _)                  = Nothing
-  go bound (G.And phi psi)             = H.And <$> go bound phi <*> go bound psi
-  go bound (G.Or phi psi)              = H.Or <$> go bound phi <*> go bound psi
-  go bound (G.Implies phi psi)         = H.Implies <$> go bound phi <*> go bound psi
-  go bound (G.Not phi)                 = H.Not <$> go bound phi
-  go _     G.Bottom                    = Just H.Bottom
-  go _     G.Top                       = Just H.Top
-  go _     (G.PropEq rel (Const v') v) = Just (H.PropEq rel (Const v') v)
-  go bound (G.PropEq rel (Var x) v)
-                | Set.member x bound   = Just (H.PropEq rel (Var x) v)
-  go _     (G.PropEq _ (Var _) _)      = Nothing
-  go bound (G.PropForall x phi)        = H.PropForall x <$> go (Set.insert x bound) phi
-
--- | Rewrite the formula by applying the decidability of equivalence of the homogeneous fragment.
+-- | Rewrite the formula by applying the homogeneous fragment retraction & normalisation recursively.
 rewriteHomogeneous :: GuardedFormula ty -> GuardedFormula ty
-rewriteHomogeneous (fromGuarded -> Just g) =
-  if H.interp g then G.Top else G.Bottom
+rewriteHomogeneous (H.retract -> Just g) =
+  if H.eval g then G.Top else G.Bottom
 rewriteHomogeneous phi = go phi where
   go :: GuardedFormula ty -> GuardedFormula ty
   go (G.Next phi)         = G.Next phi
@@ -71,7 +53,7 @@ rewriteHomogeneous phi = go phi where
   go (G.PropForall x phi) = G.PropForall x (go phi)
 
 
--- | Rewrites the formula by the following logical identities:
+-- | Rewrites the formula by the following logical identities recursively:
 --   ☐ ᪲ₖ ⊤ = ⊤
 --   ☐ᵏ ⊤ = ⊤
 --   ♢ᵏ ⊥ = ⊥
