@@ -19,10 +19,10 @@ occursPropConstraint x (PropConstraint _ t) = occursPropTerm x t
 occursFormula :: PropVarIdentifier -> Formula a -> Bool
 occursFormula x (Forall _ phi) = occursFormula x phi
 occursFormula x (ForallN _ phi) = occursFormula x phi
-occursFormula x (ExistsN _ _ phi) = occursFormula x phi
-occursFormula x (Next _ phi) = occursFormula x phi
-occursFormula x (NextN _ _ phi) = occursFormula x phi
-occursFormula x (UntilN _ _ phi psi) = occursFormula x phi || occursFormula x psi
+occursFormula x (ExistsN _ phi) = occursFormula x phi
+occursFormula x (Next phi) = occursFormula x phi
+occursFormula x (NextN _ phi) = occursFormula x phi
+occursFormula x (UntilN _ phi psi) = occursFormula x phi || occursFormula x psi
 occursFormula x (And phi psi) = occursFormula x phi || occursFormula x psi
 occursFormula x (Or phi psi) = occursFormula x phi || occursFormula x psi
 occursFormula x (Implies phi psi) = occursFormula x phi || occursFormula x psi

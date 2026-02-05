@@ -28,9 +28,10 @@ library
                     , Cardano.LTL.Occurs
                     , Cardano.LTL.Prec
                     , Cardano.LTL.Pretty
+                    , Cardano.LTL.Progress
+                    , Cardano.LTL.Rewrite
                     , Cardano.LTL.Satisfy
                     , Cardano.LTL.Subst
-                    , Cardano.LTL.Transform
 
                     , Cardano.Trace.Feed
                     , Cardano.Trace.Ingest

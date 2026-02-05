@@ -54,7 +54,7 @@ toGuardedFormula _ F2.Top                   = G.Top
 
 -- | Find all `Frag0` atoms in the form of (x = v) in the formula "now".
 findAtoms :: GuardedFormula ty -> Set (Pair PropVarIdentifier PropValue) -> Set (Pair PropVarIdentifier PropValue)
-findAtoms (G.Next _ _) set           = set
+findAtoms (G.Next _) set             = set
 findAtoms (G.And phi psi) set        = findAtoms phi (findAtoms psi set)
 findAtoms (G.Or phi psi) set         = findAtoms phi (findAtoms psi set)
 findAtoms (G.Implies phi psi) set    = findAtoms phi (findAtoms psi set)

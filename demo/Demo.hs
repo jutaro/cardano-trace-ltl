@@ -113,7 +113,7 @@ prop1 :: TemporalEventDurationMicrosec -> Formula Text
 prop1 dur = Forall 0 $ PropForall "i" $
   Implies
     (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")]))
-    (ExistsN False (floor ((1000000 :: Double) / fromIntegral dur)) $
+    (ExistsN (floor ((1000000 :: Double) / fromIntegral dur)) $
       Or
         (PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
         (PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")]))
@@ -123,7 +123,6 @@ prop1 dur = Forall 0 $ PropForall "i" $
 -- ☐ ᪲(1s) (∀i. (¬ (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)) |˜(1s) StartLeadershipCheck("slot" = i)))
 prop2 :: TemporalEventDurationMicrosec -> Formula Text
 prop2 dur = Forall (floor ((10000000 :: Double) / fromIntegral dur)) $ PropForall "i" $ UntilN
-  True
   (floor ((10000000 :: Double) / fromIntegral dur))
   (Not $
     Or
@@ -136,8 +135,8 @@ prop2 dur = Forall (floor ((10000000 :: Double) / fromIntegral dur)) $ PropForal
 prop3 :: TemporalEventDurationMicrosec -> Formula Text
 prop3 dur = Forall 0 $ PropForall "i" $ Implies
   (PropAtom "Forge.Loop.ForgedBlock" (fromList [PropConstraint "slot" (Var "i")]))
-  (ExistsN False (floor ((3000000 :: Double) / fromIntegral dur))
-                 (PropAtom "Forge.Loop.AdoptedBlock" (fromList [PropConstraint "slot" (Var "i")]))
+  (ExistsN (floor ((3000000 :: Double) / fromIntegral dur))
+           (PropAtom "Forge.Loop.AdoptedBlock" (fromList [PropConstraint "slot" (Var "i")]))
   )
 
 data Mode = Online | Offline

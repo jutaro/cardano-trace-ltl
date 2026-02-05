@@ -13,7 +13,7 @@ import           Prelude                  hiding (and)
 -- | A `Formula` where all temporal operators are guarded by a "◯".
 data GuardedFormula ty =
    ------------ Temporal -------------
-     Next Bool (Formula ty)
+     Next (Formula ty)
    -------------------------------------
 
 
@@ -39,7 +39,7 @@ and (phi : phis) = And phi (and phis)
 
 -- | Embed `GuardedFormula` into `Formula`
 toFormula :: GuardedFormula ty -> Formula ty
-toFormula (Next w phi)       = F.Next w phi
+toFormula (Next phi)         = F.Next phi
 toFormula (And phi psi)      = F.And (toFormula phi) (toFormula psi)
 toFormula (Or phi psi)       = F.Or (toFormula phi) (toFormula psi)
 toFormula (Implies phi psi)  = F.Implies (toFormula phi) (toFormula psi)
@@ -51,7 +51,7 @@ toFormula (PropEq e t v)     = F.PropEq e t v
 
 -- | Peel off one layer of "◯" in `GuardedFormula`, landing in `Formula`.
 forward :: GuardedFormula ty -> Formula ty
-forward (Next _ phi)       = phi
+forward (Next phi)         = phi
 forward (And phi psi)      = F.And (forward phi) (forward psi)
 forward (Or phi psi)       = F.Or (forward phi) (forward psi)
 forward (Implies phi psi)  = F.Implies (forward phi) (forward psi)

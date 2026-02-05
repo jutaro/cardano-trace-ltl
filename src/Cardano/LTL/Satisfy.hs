@@ -12,13 +12,14 @@ module Cardano.LTL.Satisfy(
   ) where
 
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Transform
+import           Cardano.LTL.Rewrite
 
 import           Prelude                                      hiding (lookup)
 
 import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula,
                                                                forward)
 import           Cardano.LTL.Lang.Internal.HomogeneousFormula (interp)
+import           Cardano.LTL.Progress
 import           Data.IORef                                   (IORef,
                                                                modifyIORef')
 import           Data.Word                                    (Word64)
@@ -56,12 +57,11 @@ traceGuardedFormula ~str x =
 handleNext :: (Event event ty, Ord ty, Show ty) => (Int, Formula ty) -> event -> Either (SatisfactionResult ty) (Int, Formula ty)
 handleNext (!n, !formula0) m =
   let formula1 = traceFormula ("(" <> show (1 + n) <> ")\ninitial:") formula0 in
-  let formula2 = traceGuardedFormula "stepped:" $ step formula1 m in
-  let formula3 = traceGuardedFormula "simplified-next:" (simplifyNext formula2) in
-  let formula30 = traceGuardedFormula "simplified-homogeneous:" (simplifyHomogeneous formula3) in
-  let formula4 = traceGuardedFormula "simplified-frag:" $ simplifyFragment formula30 in
-  let formula5 = traceFormula "forwarded:" (forward formula4) in
-  let formula6 = traceFormula "simplified:" (simplify formula5) in
+  let formula2 = traceGuardedFormula "next:" $ next formula1 m in
+  let formula3 = traceGuardedFormula "rewrite-hom:" (rewriteHomogeneous formula2) in
+  let formula4 = traceGuardedFormula "rewrite-frag:" $ rewriteFragment formula3 in
+  let formula5 = traceFormula "forward:" (forward formula4) in
+  let formula6 = traceFormula "rewrite-id:" (rewriteIdentity formula5) in
   case formula6 of
     Top     -> Left Satisfied
     Bottom  -> Left (Unsatisfied (relevance formula0))

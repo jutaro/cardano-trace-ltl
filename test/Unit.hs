@@ -115,7 +115,7 @@ prop1 :: Formula Ty
 prop1 = PropForall "i" $ Forall 0 $
   Implies
     (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
-    (ExistsN False 3 $
+    (ExistsN 3 $
       Or
         (PropAtom Success (fromList [PropConstraint "idx" (Var "i")]))
         (PropAtom Failure (fromList [PropConstraint "idx" (Var "i")]))
@@ -126,7 +126,6 @@ prop1 = PropForall "i" $ Forall 0 $
 -- Start mustn't be preceded by a corresponding success or failure.
 prop2 :: Formula Ty
 prop2 = PropForall "i" $ UntilN
-  True
   100
   (Not $
     Or
@@ -164,15 +163,15 @@ prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       satisfies prop1 log3 @?= Satisfied
   , testCase (show log4 <> " does not satisfy the formula") $
       satisfies prop1 log4 @?= Unsatisfied
-        (fromList [2])
+        (fromList [(2, Start)])
   , testCase (show log5 <> " satisfies the formula") $
       satisfies prop1 log5 @?= Satisfied
   , testCase (show log6 <> " satisfies the formula") $
       satisfies prop1 log6 @?= Unsatisfied
-        (fromList [4,7])
+        (fromList [(4,Start),(7,Success)])
   , testCase (show log7 <> " does not satisfy the formula") $
       satisfies prop1 log7 @?= Unsatisfied
-        (fromList [2])
+        (fromList [(2, Start)])
   ]
 
 prop2SatisfiabilityTests :: TestTree
@@ -186,15 +185,15 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       satisfies prop2 logEmpty @?= Satisfied
   , testCase (show log8 <> "does not satisfy the formula") $
       satisfies prop2 log8 @?= Unsatisfied
-        (fromList [1])
+        (fromList [(1,Start),(1,Success)])
   , testCase (show log9 <> " does not satisfy the formula") $
       satisfies prop2 log9 @?= Unsatisfied
-        (fromList [1])
+        (fromList [(1,Success)])
   , testCase (show log10 <> " satisfies the formula") $
       satisfies prop2 log10 @?= Satisfied
   , testCase (show log11 <> " does not satisfy the formula") $
       satisfies prop2 log11 @?=
       Unsatisfied
-        (fromList [1,2])
+        (fromList [(1,Start),(1,Success),(2,Success)])
 
   ]

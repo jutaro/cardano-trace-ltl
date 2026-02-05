@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Cardano.LTL.Lang.Internal.HomogeneousFormula (
     HomogeneousFormula(..)
-  , toGuardedFormula, toFormula, values, substHomogeneousFormula, interp, equiv) where
+  , toGuardedFormula, toFormula, values, substHomogeneousFormula, interp, quote, equiv) where
 
 import           Cardano.LTL.Lang.Formula                 (Formula, PropTerm,
                                                            PropValue,
@@ -89,7 +89,8 @@ substHomogeneousFormula _ _ (PropEq rel (F.Var x') rhs) = PropEq rel (F.Var x') 
 substHomogeneousFormula v x (PropForall x' phi) | x /= x' = PropForall x' (substHomogeneousFormula v x phi)
 substHomogeneousFormula _ _ (PropForall x' phi) = PropForall x' phi
 
--- | Interpret the `HomogeneousFormula` onto `Bool`
+-- | Interpret the `HomogeneousFormula` onto `Bool`.
+--   This is the "interesting" part of the iso: `HomogeneousFormula` ≅ `Bool`
 interp :: HomogeneousFormula ty -> Bool
 interp (Or phi psi) = interp phi || interp psi
 interp (And phi psi) = interp phi && interp psi
@@ -105,6 +106,11 @@ interp (PropForall x phi) = interp (substHomogeneousFormula Placeholder x phi) &
     Set.toList (values x phi) <&> \v ->
       interp (substHomogeneousFormula (Val v) x phi)
   )
+
+-- | This is the "easy" part of the iso: `HomogeneousFormula` ≅ `Bool`
+quote :: Bool -> HomogeneousFormula ty
+quote True = Top
+quote False = Bottom
 
 -- | Check equivalence of two `HomogeneousFormula`s.
 equiv :: HomogeneousFormula ty -> HomogeneousFormula ty -> Bool

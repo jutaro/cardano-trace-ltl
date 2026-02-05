@@ -21,11 +21,6 @@ surround :: Prec -> Prec -> Text -> Text
 surround outer inner str | outer <= inner = str
 surround _ _ str = "(" <> str <> ")"
 
--- | Mark a connective as weak when requested.
-weak :: Bool -> Text -> Text
-weak True x  = x <> "˜"
-weak False x = x
-
 -- | Render a property value.
 prettyPropValue :: PropValue -> Text
 prettyPropValue (IntValue i)  = pack (show i)
@@ -99,14 +94,14 @@ prettyFormula (Forall k phi) lvl = surround lvl Prec.Prefix $
   "☐ ᪲" <> (if k == 0 then "" else wordToSubscript k) <> " " <> prettyFormula phi Prec.Atom
 prettyFormula (ForallN k phi) lvl = surround lvl Prec.Prefix $
   "☐" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
-prettyFormula (ExistsN w k phi) lvl = surround lvl Prec.Prefix $
-  weak w "♢" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
-prettyFormula (Next w phi) lvl = surround lvl Prec.Prefix $
-  weak w "◯" <> " " <> prettyFormula phi Prec.Atom
-prettyFormula (NextN w k phi) lvl = surround lvl Prec.Prefix $
-  weak w "◯" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
-prettyFormula (UntilN w k phi psi) lvl = surround lvl Prec.Universe $
-  prettyFormula phi Prec.Atom <> " " <> weak w "|" <> wordToSuperscript k <> " " <> prettyFormula psi Prec.Atom
+prettyFormula (ExistsN k phi) lvl = surround lvl Prec.Prefix $
+  "♢" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (Next phi) lvl = surround lvl Prec.Prefix $
+  "◯" <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (NextN k phi) lvl = surround lvl Prec.Prefix $
+  "◯" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
+prettyFormula (UntilN k phi psi) lvl = surround lvl Prec.Universe $
+  prettyFormula phi Prec.Atom <> " " <> "|" <> wordToSuperscript k <> " " <> prettyFormula psi Prec.Atom
 prettyFormula (Implies phi psi) lvl = surround lvl Prec.Implies $
   prettyFormula phi Prec.Or <> " " <> "⇒" <> " " <> prettyFormula psi Prec.Implies
 prettyFormula (Or phi psi) lvl = surround lvl Prec.Or $

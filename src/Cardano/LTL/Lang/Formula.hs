@@ -8,6 +8,11 @@ module Cardano.LTL.Lang.Formula (
   , PropTerm(..)
   , PropConstraint(..)
   , Formula(..)
+  , unfoldForall
+  , unfoldForallN
+  , unfoldExistsN
+  , unfoldNextN
+  , unfoldUntilN
   , relevance
   , Relevance
   , Event(..)) where
@@ -67,24 +72,24 @@ data Formula ty =
      -- | ♢ⁿ φ
      --   ♢⁰ φ ≡ ⊥
      --   ♢¹⁺ᵏ φ ≡ φ ∨ ◯ (♢ᵏ φ)
-   | ExistsN Bool Word (Formula ty)
+   | ExistsN Word (Formula ty)
      -- | ◯ φ
-   | Next Bool (Formula ty)
+   | Next (Formula ty)
      -- | ◯ⁿ φ
      --   ◯⁰ φ ≡ φ
      --   ◯¹⁺ᵏ φ ≡ ◯ (◯ᵏ φ)
-   | NextN Bool Word (Formula ty)
+   | NextN Word (Formula ty)
      -- | φ |ⁿ ψ
      --   φ |⁰ ψ ≡ ⊤
      --   φ |¹⁺ᵏ ψ ≡ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ)
-   | UntilN Bool Word (Formula ty) (Formula ty)
+   | UntilN Word (Formula ty) (Formula ty)
    -------------------------------------
 
 
    ------------ Connective -------------
+     -- | φ ∨ ψ
    | Or (Formula ty) (Formula ty)
-     -- | (∧) φ̄, such that
-     -- | (∧) [] ≡ ⊤
+     -- | φ ∧ ψ
    | And (Formula ty) (Formula ty)
      -- | ¬ φ
    | Not (Formula ty)
@@ -111,23 +116,70 @@ data Formula ty =
 relevance :: Ord ty => Formula ty -> Relevance ty
 relevance = go mempty where
   go :: Ord ty => Relevance ty -> Formula ty -> Relevance ty
-  go acc (Forall _ phi)       = go acc phi
-  go acc (ForallN _ phi)      = go acc phi
-  go acc (ExistsN _ _ phi)    = go acc phi
-  go acc (Next _ phi)         = go acc phi
-  go acc (NextN _ _ phi)      = go acc phi
-  go acc (UntilN _ _ phi psi) = go (go acc phi) psi
-  go acc (Or phi psi)         = go (go acc phi) psi
-  go acc (And phi psi)        = go (go acc phi) psi
-  go acc (Not phi)            = go acc phi
-  go acc (Implies phi psi)    = go (go acc phi) psi
-  go acc Top                  = acc
-  go acc Bottom               = acc
-  go acc (PropAtom {})        = acc
-  go acc (PropForall _ phi)   = go acc phi
-  go acc (PropEq rel _ _)     = rel `union` acc
+  go acc (Forall _ phi)     = go acc phi
+  go acc (ForallN _ phi)    = go acc phi
+  go acc (ExistsN _ phi)    = go acc phi
+  go acc (Next phi)         = go acc phi
+  go acc (NextN _ phi)      = go acc phi
+  go acc (UntilN _ phi psi) = go (go acc phi) psi
+  go acc (Or phi psi)       = go (go acc phi) psi
+  go acc (And phi psi)      = go (go acc phi) psi
+  go acc (Not phi)          = go acc phi
+  go acc (Implies phi psi)  = go (go acc phi) psi
+  go acc Top                = acc
+  go acc Bottom             = acc
+  go acc (PropAtom {})      = acc
+  go acc (PropForall _ phi) = go acc phi
+  go acc (PropEq rel _ _)   = rel `union` acc
+
+unfoldForall :: Word -> Formula ty -> Formula ty
+unfoldForall k phi = And phi (Next (NextN k (Forall k phi)))
+
+unfoldForallN :: Word -> Formula ty -> Formula ty
+unfoldForallN 0 _ = Top
+unfoldForallN k phi = And phi (Next (ForallN (k - 1) phi))
+
+unfoldExistsN :: Word -> Formula ty -> Formula ty
+unfoldExistsN 0 _ = Bottom
+unfoldExistsN k phi = Or phi (Next (ExistsN (k - 1) phi))
+
+unfoldNextN :: Word -> Formula ty -> Formula ty
+unfoldNextN 0 phi = phi
+unfoldNextN k phi = Next (NextN (k - 1) phi)
+
+unfoldUntilN :: Word -> Formula ty -> Formula ty -> Formula ty
+unfoldUntilN 0 _ _ = Top
+unfoldUntilN k phi psi =
+  Or psi
+     (And
+       phi
+       (And
+         (Not psi)
+         (Next (UntilN (k - 1) phi psi))
+       )
+     )
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
+-- (∅ ⊧ ◯ (φ ∨ ψ))  ⇔ (∅ ⊧ ◯ φ) ∨ (∅ ⊧ ◯ ψ)
+-- (∅ ⊧ ◯ (φ ∧ ψ))  ⇔ (∅ ⊧ ◯ φ) ∧ (∅ ⊧ ◯ ψ)
+-- (∅ ⊧ ◯ (φ ⇒ ψ))  ⇔ (∅ ⊧ ◯ φ) ⇒ (∅ ⊧ ◯ ψ)
+-- (∅ ⊧ ◯ (¬ φ))    ⇔ ¬ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ ⊥)        ⇔ ⊥
+-- (∅ ⊧ ◯ ⊤)        ⇔ ⊤
+-- (∅ ⊧ ◯ (t = v))  ⇔ t = v
+-- (∅ ⊧ ◯ (A ty c̄)) ⇔ ⊥
+-- (∅ ⊧ ◯ (◯ φ)) ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (◯ᵏ φ)) ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (☐ ᪲ φ)) ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (♢⁰ φ)) ⇔ ⊥
+-- (∅ ⊧ ◯ (♢¹⁺ᵏ φ)) ⇔ (∅ ⊧ ◯ (φ ∨ ◯ (♢ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (☐⁰ φ)) ⇔ ⊤
+-- (∅ ⊧ ◯ (☐¹⁺ᵏ φ)) ⇔ (∅ ⊧ ◯ (φ ∧ ◯ (☐ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (φ |⁰ ψ)) = ⊤
+-- (∅ ⊧ ◯ (φ |¹⁺ᵏ ψ)) = (∅ ⊧ ◯ (...))
+-- (∅ ⊧ ☐ ᪲ₖ φ) ⇔ (∅ ⊧ φ ∧ ◯ (◯ᵏ (☐ ᪲ φ)))
+-- (∅ ⊧ A ty c̄) ⇔ ⊥
+--
 -- (t̄ ⊧ ∀x. φ) ⇔ (∀x. (t̄ ⊧ φ))
 -- (t̄ ⊧ ☐ ᪲ₖ φ) ⇔ (t̄ ⊧ φ ∧ ◯ (◯ᵏ (☐ ᪲ₖ)))
 -- (t̄ ⊧ ☐⁰ φ) ⇔ ⊤
