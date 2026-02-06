@@ -101,7 +101,7 @@ prettyFormula (Next phi) lvl = surround lvl Prec.Prefix $
 prettyFormula (NextN k phi) lvl = surround lvl Prec.Prefix $
   "◯" <> wordToSuperscript k <> " " <> prettyFormula phi Prec.Atom
 prettyFormula (UntilN k phi psi) lvl = surround lvl Prec.Universe $
-  prettyFormula phi Prec.Atom <> " " <> "|" <> wordToSuperscript k <> " " <> prettyFormula psi Prec.Atom
+  prettyFormula phi Prec.Implies <> " " <> "|" <> wordToSuperscript k <> " " <> prettyFormula psi Prec.Implies
 prettyFormula (Implies phi psi) lvl = surround lvl Prec.Implies $
   prettyFormula phi Prec.Or <> " " <> "⇒" <> " " <> prettyFormula psi Prec.Implies
 prettyFormula (Or phi psi) lvl = surround lvl Prec.Or $

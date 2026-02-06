@@ -52,36 +52,46 @@ type Relevance ty = Set (EventIndex, ty)
 -- ty ::= <finite type>
 
 -- φ{atom} ::= ⊤ | ⊥ | A ty c̄ | (φ{≥universe})
--- φ{eq} ::= t == v
+-- φ{eq} ::= t = v
 -- φ{prefix} ::= ◯ φ{≥atom} | ◯ᵏ φ{≥atom} | ♢ᵏ φ{≥atom} | ☐ ᪲ₖ φ{≥atom} | ☐ᵏ φ{≥atom} | ¬ φ{≥atom}
 -- φ{and} ::= φ{≥and} ∧ φ{>and}
 -- φ{or} ::= φ{≥or} ∨ φ{>or}
 -- φ{implies} ::= φ{>implies} ⇒ φ{≥implies}
--- φ{universe} ::= ∀x. φ{≥universe} | φ{≥atom} \|ᵏ φ{≥atom}
+-- φ{universe} ::= ∀x. φ{≥universe} | φ{≥implies} \|ᵏ φ{≥implies}
 
 -- | Default name: φ.
 -- | A type of Linear Temporal Logic formulas over a base type ty.
 data Formula ty =
    ------------ Temporal -------------
      -- | ☐ ᪲ₖ φ ≡ φ ∧ ◯ (◯ᵏ (☐ ᪲ₖ))
+     --   For every (k+1)-th unit of time from now, φ
+     --   For example:
+     --     ☐ ᪲₁ φ means for every other unit of time from now, φ
+     --     ☐ ᪲₃ φ means for every 4-th unit of time from now, φ
+     --     ☐ ᪲₀ φ means for every unit of time from now, φ
      Forall Word (Formula ty)
      -- | ☐ⁿ φ
      --   ☐⁰ φ ≡ ⊤
      --   ☐¹⁺ᵏ φ ≡ φ ∧ ◯ (☐ᵏ φ)
+     --   For each of the n units of time from now, φ
    | ForallN Word (Formula ty)
      -- | ♢ⁿ φ
      --   ♢⁰ φ ≡ ⊥
      --   ♢¹⁺ᵏ φ ≡ φ ∨ ◯ (♢ᵏ φ)
+     --   For one of the n units of time from now, φ
    | ExistsN Word (Formula ty)
      -- | ◯ φ
+     --   For the next unit of time from now, φ.
    | Next (Formula ty)
      -- | ◯ⁿ φ
      --   ◯⁰ φ ≡ φ
      --   ◯¹⁺ᵏ φ ≡ ◯ (◯ᵏ φ)
+     --   For the n-th unit of time from now, φ
    | NextN Word (Formula ty)
      -- | φ |ⁿ ψ
      --   φ |⁰ ψ ≡ ⊤
      --   φ |¹⁺ᵏ ψ ≡ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ)
+     --   φ until ψ in the n units of time from now
    | UntilN Word (Formula ty) (Formula ty)
    -------------------------------------
 
@@ -216,5 +226,5 @@ class Event a ty | a -> ty where
   -- | Properties of the event pertinent to the given type.
   --   props e t assumes that ofTy e t = True
   props :: a -> ty -> Map PropVarIdentifier PropValue
-  -- | Timestamp of the event (Used for debug & monitoring only, so can be Nothing if not provided).
-  beg :: a -> Word64 -- μs since epoch to the beginning of the event
+  -- | Timestamp of the event in μs (Used for debug & monitoring only).
+  beg :: a -> Word64

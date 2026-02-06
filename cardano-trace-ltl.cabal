@@ -18,6 +18,7 @@ library
                       Cardano.LTL.Check
                     , Cardano.LTL.Lang.Formula
                     , Cardano.LTL.Lang.Prec
+                    , Cardano.LTL.Lang.Parser
                     , Cardano.LTL.Lang.Internal.Fragment
                     , Cardano.LTL.Lang.Internal.Fragment0
                     , Cardano.LTL.Lang.Internal.Fragment1
@@ -47,13 +48,19 @@ library
                     , stm
                     , aeson
                     , streaming
+                    , megaparsec
 
     hs-source-dirs:   src
 
     ghc-options:      -O2
 
     default-language: GHC2021
-    default-extensions: Strict
+    default-extensions:
+      LambdaCase
+      NamedFieldPuns
+      OverloadedStrings
+
+      Strict
 
 executable cardano-trace-ltl-verify
     import:           warnings
@@ -71,6 +78,33 @@ executable cardano-trace-ltl-verify
       , trace-dispatcher ^>= 2.11
       , aeson
       , streaming
+
+
+    -- Directories containing source files.
+    hs-source-dirs:   demo
+
+    -- Base language which the package is written in.
+    default-language: GHC2021
+
+    default-extensions: Strict
+
+executable cardano-trace-ltl-test-parser
+    import:           warnings
+    main-is:          TestParser.hs
+
+    other-modules:
+    other-extensions:
+
+    -- Other library packages from which modules are imported.
+    build-depends:
+        base
+      , text
+      , containers
+      , cardano-trace-ltl
+      , trace-dispatcher ^>= 2.11
+      , aeson
+      , streaming
+      , megaparsec
 
 
     -- Directories containing source files.
@@ -124,3 +158,4 @@ test-suite cardano-trace-ltl-test
     , tasty
     , tasty-hunit
     , text
+    , megaparsec

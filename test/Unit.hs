@@ -10,9 +10,12 @@ import           Cardano.LTL.Pretty       (prettyFormula)
 import           Cardano.LTL.Satisfy      (SatisfactionResult (..), satisfies)
 import           Data.Map                 (singleton)
 import           Data.Set                 (fromList)
-import           Data.Text                (unpack)
+import           Data.Text                (unpack, Text)
 import           Test.Tasty
 import           Test.Tasty.HUnit
+import qualified Data.Text as Text
+import Text.Megaparsec
+import qualified Cardano.LTL.Lang.Parser as Parser
 
 type Identifier = EventIndex
 
@@ -138,7 +141,7 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Unit tests" [syntacticTests, prop1SatisfiabilityTests, prop2SatisfiabilityTests]
+tests = testGroup "Unit tests" [syntacticTests, prop1SatisfiabilityTests, prop2SatisfiabilityTests, parserTests]
 
 syn1 = PropForall "i" (PropAtom () (fromList [PropConstraint "idx" (Var "i")]))
 syn2 = PropForall "i" (PropAtom () (fromList [PropConstraint "idx" (Var "j")]))
@@ -196,4 +199,46 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       Unsatisfied
         (fromList [(1,Start),(1,Success),(2,Success)])
 
+  ]
+
+formula0 :: Text
+formula0 = "☐ ᪲ (∀x. \"Forge.Loop.StartLeadershipCheck\"(\"slot\" = x) ⇒ \
+  \♢³⁰⁰⁰ (\"Forge.Loop.NodeIsLeader\"(\"slot\" = x) ∨ \"Forge.Loop.NodeNotLeader\"(\"slot\" = x)))"
+
+formula1 :: Text
+formula1 =
+  "☐ ᪲₄₂ (∀i. (¬ (\"NodeIsLeader\"(\"slot\" = i) ∨ \"NodeNotLeader\"(\"slot\" = i)) |¹²³ \"StartLeadershipCheck\"(\"slot\" = i)))"
+
+parserTests :: TestTree
+parserTests = testGroup "Parsing"
+  [
+    testCase (Text.unpack formula0) $
+      parse (Parser.formula Parser.text) "input" formula0 @?=
+        Right
+          (ForallN
+            0
+            (PropForall
+              "x"
+              (Implies
+                (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "x")]))
+                (ExistsN
+                  3000
+                  (Or
+                    (PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "x")]))
+                    (PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "x")])))))))
+  ,
+    testCase (Text.unpack formula1) $
+      parse (Parser.formula Parser.text) "input" formula1 @?=
+        Right
+          (ForallN
+            42
+            (PropForall
+              "i"
+              (UntilN
+                123
+                (Not
+                  (Or
+                    (PropAtom "NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
+                    (PropAtom "NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")]))))
+                (PropAtom "StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")])))))
   ]
