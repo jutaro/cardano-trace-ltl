@@ -3,8 +3,7 @@
 module Cardano.LTL.Progress(next, terminate) where
 
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Lang.GuardedFormula     (GuardedFormula)
-import qualified Cardano.LTL.Lang.GuardedFormula     as G
+import qualified Cardano.LTL.Lang.Formula            as F
 import           Cardano.LTL.Lang.HomogeneousFormula (HomogeneousFormula)
 import qualified Cardano.LTL.Lang.HomogeneousFormula as H
 import           Data.Map.Strict                     (lookup)
@@ -22,32 +21,32 @@ import qualified Data.Text                           as Text
 
 -- | This is an algorithm for representing
 --   (t t̄ ⊧ φ) in terms of ∃φ'. (t̄ ⊧ φ')
-next :: (Event event ty, Eq ty) => Formula ty -> event -> GuardedFormula ty
+next :: (Event event ty, Eq ty) => Formula ty -> event -> Formula ty
 next (Forall k phi) s = next (unfoldForall k phi) s
 next (ForallN k phi) s = next (unfoldForallN k phi) s
 next (ExistsN k phi) s = next (unfoldExistsN k phi) s
-next (Next phi) _ = G.Next phi
 next (NextN k phi) s = next (unfoldNextN k phi) s
 next (UntilN k phi psi) s = next (unfoldUntilN k phi psi) s
-next (And phi psi) s = G.And (next phi s) (next psi s)
-next (Or phi psi) s = G.Or (next phi s) (next psi s)
-next (Implies phi psi) s = G.Implies (next phi s) (next psi s)
-next (Not phi) s = G.Not (next phi s)
-next Bottom _ = G.Bottom
-next Top _ = G.Top
+next (Next phi) _ = phi
+next (And phi psi) s = And (next phi s) (next psi s)
+next (Or phi psi) s = Or (next phi s) (next psi s)
+next (Implies phi psi) s = Implies (next phi s) (next psi s)
+next (Not phi) s = Not (next phi s)
+next Bottom _ = Bottom
+next Top _ = Top
 next (PropAtom c is) s | ofTy s c =
-  G.and $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
+  F.and $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
     case lookup key (props s c) of
-      Just v  -> G.PropEq (Set.singleton (index s, c)) t v
+      Just v  -> PropEq (Set.singleton (index s, c)) t v
       Nothing ->
 #ifdef CRITICAL_ERROR_ON_MISSING_KEY
         error $ "Missing key: " <> Text.unpack key
 #else
-        G.Bottom
+        Bottom
 #endif
-next (PropAtom {}) _ = G.Bottom
-next (PropForall x phi) s = G.PropForall x (next phi s)
-next (PropEq rel a b) _ = G.PropEq rel a b
+next (PropAtom {}) _ = Bottom
+next (PropForall x phi) s = PropForall x (next phi s)
+next (PropEq rel a b) _ = PropEq rel a b
 
 -- | This is an algorithm for (∅ ⊧ ◯ φ)
 terminateNext :: Formula a -> HomogeneousFormula a

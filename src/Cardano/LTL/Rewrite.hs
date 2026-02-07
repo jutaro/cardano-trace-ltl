@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# LANGUAGE CPP          #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE CPP #-}
 module Cardano.LTL.Rewrite(
   rewriteHomogeneous,
   rewriteFragment,
@@ -10,50 +9,42 @@ module Cardano.LTL.Rewrite(
 import           Cardano.LTL.Lang.Formula
 import           Cardano.LTL.Lang.Fragment           (findAtoms,
                                                       normaliseFragment)
-import           Cardano.LTL.Lang.GuardedFormula     (GuardedFormula)
-import qualified Cardano.LTL.Lang.GuardedFormula     as G
-import qualified Cardano.LTL.Lang.HomogeneousFormula as H
-import           Data.Set                            (Set)
-import           Prelude                             hiding (lookup)
+import           Cardano.LTL.Lang.HomogeneousFormula (normaliseHomogeneous)
+import Data.Maybe (fromMaybe)
 
 -- This file concerns applying rewrite rules to a formula.
 -- The rewrite rules must be logical identities, hence all rewrites here produce logically equivalent formulas.
 
--- | Rewrite the formula by applying the fragment retraction & normalisation recursively.
-rewriteFragment :: Ord ty => GuardedFormula ty -> GuardedFormula ty
-rewriteFragment phi = go (findAtoms phi mempty) phi where
-  go :: Ord ty => Set (PropVarIdentifier, PropValue) -> GuardedFormula ty -> GuardedFormula ty
-  go _ (G.Next phi) = G.Next phi
-  go atoms (G.And phi psi) =
-    normaliseFragment atoms (G.And (go atoms phi) (go atoms psi))
-  go atoms (G.Or phi psi) =
-    normaliseFragment atoms (G.Or (go atoms phi) (go atoms psi))
-  go atoms (G.Implies phi psi) =
-    normaliseFragment atoms (G.Implies (go atoms phi) (go atoms psi))
-  go atoms (G.Not phi) =
-    normaliseFragment atoms (G.Not (go atoms phi))
-  go _ G.Bottom = G.Bottom
-  go _ G.Top = G.Top
-  go _ (G.PropEq rel t v) = G.PropEq rel t v
-  go atoms (G.PropForall x phi) = G.PropForall x (go atoms phi)
+-- | Call the given function on all sub-elements of the formula recursively
+--   up to any temporal operator (= heterogeneous fragment), exclusively.
+recurseHomogeneous :: (Formula ty -> Maybe (Formula ty)) -> Formula ty -> Formula ty
+recurseHomogeneous _ self@(PropAtom {}) = self
+recurseHomogeneous _ self@(Forall {})   = self
+recurseHomogeneous _ self@(ExistsN {})  = self
+recurseHomogeneous _ self@(ForallN {})  = self
+recurseHomogeneous _ self@(UntilN {})   = self
+recurseHomogeneous _ self@(NextN {})    = self
+recurseHomogeneous _ self@(Next _)      = self
+recurseHomogeneous f self@(And phi psi) =
+  fromMaybe (And (recurseHomogeneous f phi) (recurseHomogeneous f psi)) (f self)
+recurseHomogeneous f self@(Or phi psi) =
+  fromMaybe (Or (recurseHomogeneous f phi) (recurseHomogeneous f psi)) (f self)
+recurseHomogeneous f self@(Implies phi psi) =
+  fromMaybe (Implies (recurseHomogeneous f phi) (recurseHomogeneous f psi)) (f self)
+recurseHomogeneous f self@(Not phi) =
+  fromMaybe (Not (recurseHomogeneous f phi)) (f self)
+recurseHomogeneous f self@Bottom             = fromMaybe self (f self)
+recurseHomogeneous f self@Top                = fromMaybe self (f self)
+recurseHomogeneous f self@(PropEq {})        = fromMaybe self (f self)
+recurseHomogeneous f self@(PropForall x phi) = fromMaybe (PropForall x (recurseHomogeneous f phi)) (f self)
 
+-- | Rewrite the formula by applying the fragment retraction & normalisation recursively.
+rewriteFragment :: Ord ty => Formula ty -> Formula ty
+rewriteFragment phi = recurseHomogeneous (normaliseFragment (findAtoms phi mempty)) phi
 
 -- | Rewrite the formula by applying the homogeneous fragment retraction & normalisation recursively.
-rewriteHomogeneous :: GuardedFormula ty -> GuardedFormula ty
-rewriteHomogeneous (H.retract -> Just g) =
-  if H.eval g then G.Top else G.Bottom
-rewriteHomogeneous phi = go phi where
-  go :: GuardedFormula ty -> GuardedFormula ty
-  go (G.Next phi)         = G.Next phi
-  go (G.And phi psi)      = G.And (rewriteHomogeneous phi) (rewriteHomogeneous psi)
-  go (G.Or phi psi)       = G.Or (rewriteHomogeneous phi) (rewriteHomogeneous psi)
-  go (G.Implies phi psi)  = G.Implies (rewriteHomogeneous phi) (rewriteHomogeneous psi)
-  go (G.Not phi)          = G.Not (go phi)
-  go G.Bottom             = G.Bottom
-  go G.Top                = G.Top
-  go (G.PropEq rel t v)   = G.PropEq rel t v
-  go (G.PropForall x phi) = G.PropForall x (go phi)
-
+rewriteHomogeneous :: Formula ty -> Formula ty
+rewriteHomogeneous = recurseHomogeneous normaliseHomogeneous
 
 -- | Rewrites the formula by the following logical identities recursively:
 --   ☐ ᪲ₖ ⊤ = ⊤

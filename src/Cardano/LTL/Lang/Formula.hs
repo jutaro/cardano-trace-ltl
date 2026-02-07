@@ -15,12 +15,14 @@ module Cardano.LTL.Lang.Formula (
   , unfoldUntilN
   , relevance
   , Relevance
+  , and
   , Event(..)) where
 
 import           Data.Map.Strict (Map)
 import           Data.Set        (Set, union)
 import           Data.Text       (Text)
 import           Data.Word       (Word64)
+import           Prelude         hiding (and)
 
 -- | A property name (e.g. "thread", "node", etc.).
 type PropName = Text
@@ -146,11 +148,11 @@ unfoldForall :: Word -> Formula ty -> Formula ty
 unfoldForall k phi = And phi (Next (NextN k (Forall k phi)))
 
 unfoldForallN :: Word -> Formula ty -> Formula ty
-unfoldForallN 0 _ = Top
+unfoldForallN 0 _   = Top
 unfoldForallN k phi = And phi (Next (ForallN (k - 1) phi))
 
 unfoldExistsN :: Word -> Formula ty -> Formula ty
-unfoldExistsN 0 _ = Bottom
+unfoldExistsN 0 _   = Bottom
 unfoldExistsN k phi = Or phi (Next (ExistsN (k - 1) phi))
 
 unfoldNextN :: Word -> Formula ty -> Formula ty
@@ -168,6 +170,11 @@ unfoldUntilN k phi psi =
          (Next (UntilN (k - 1) phi psi))
        )
      )
+
+and :: [Formula ty] -> Formula ty
+and []           = Top
+and [phi]        = phi
+and (phi : phis) = And phi (and phis)
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
 -- (∅ ⊧ ◯ (φ ∨ ψ))  ⇔ (∅ ⊧ ◯ φ) ∨ (∅ ⊧ ◯ ψ)

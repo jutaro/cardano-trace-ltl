@@ -16,8 +16,6 @@ import           Cardano.LTL.Rewrite
 
 import           Prelude                                  hiding (lookup)
 
-import           Cardano.LTL.Lang.GuardedFormula          (GuardedFormula,
-                                                           forward)
 import           Cardano.LTL.Lang.HomogeneousFormula      (eval)
 import           Cardano.LTL.Progress
 import           Data.IORef                               (IORef, modifyIORef')
@@ -48,26 +46,17 @@ traceFormula ~str x =
   x
 #endif
 
-traceGuardedFormula :: Show ty => String -> GuardedFormula ty -> GuardedFormula ty
-traceGuardedFormula ~str x =
-#ifdef TRACE
-  trace (str <> " " <> Text.unpack (prettyFormula (toFormula x) Prec.Universe)) x
-#else
-  x
-#endif
-
 handleNext :: (Event event ty, Ord ty, Show ty) => (Int, Formula ty) -> event -> Either (SatisfactionResult ty) (Int, Formula ty)
 handleNext (!n, !formula0) m =
   let formula1 = traceFormula ("(" <> show (1 + n) <> ")\ninitial:") formula0 in
-  let formula2 = traceGuardedFormula "next:" $ next formula1 m in
-  let formula3 = traceGuardedFormula "rewrite-hom:" (rewriteHomogeneous formula2) in
-  let formula4 = traceGuardedFormula "rewrite-frag:" $ rewriteFragment formula3 in
-  let formula5 = traceFormula "forward:" (forward formula4) in
-  let formula6 = traceFormula "rewrite-id:" (rewriteIdentity formula5) in
-  case formula6 of
+  let formula2 = traceFormula "next:" $ next formula1 m in
+  let formula3 = traceFormula "rewrite-hom:" (rewriteHomogeneous formula2) in
+  let formula4 = traceFormula "rewrite-frag:" $ rewriteFragment formula3 in
+  let formula5 = traceFormula "rewrite-id:" (rewriteIdentity formula4) in
+  case formula5 of
     Top     -> Left Satisfied
     Bottom  -> Left (Unsatisfied (relevance formula0))
-    formula -> Right (n + 1, formula6)
+    formula -> Right (n + 1, formula5)
 
 handleEnd :: (Ord ty, Show ty) => (Int, Formula ty) -> SatisfactionResult ty
 handleEnd (!n, !formula) =

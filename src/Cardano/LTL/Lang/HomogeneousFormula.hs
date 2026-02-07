@@ -1,18 +1,22 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Cardano.LTL.Lang.HomogeneousFormula (
     HomogeneousFormula(..)
-  , toGuardedFormula, toFormula, values, substHomogeneousFormula, eval, quote, equiv, retract) where
+  , toFormula
+  , values
+  , substHomogeneousFormula
+  , eval
+  , quote
+  , equiv
+  , retract
+  , normaliseHomogeneous) where
 
-import           Cardano.LTL.Lang.Formula        (Formula, PropTerm (..),
-                                                  PropValue, PropVarIdentifier,
-                                                  Relevance)
-import qualified Cardano.LTL.Lang.Formula        as F
-import           Cardano.LTL.Lang.GuardedFormula (GuardedFormula)
-import qualified Cardano.LTL.Lang.GuardedFormula as G
-import           Data.Function                   (on)
-import           Data.Functor                    ((<&>))
-import           Data.Set                        (Set)
-import qualified Data.Set                        as Set
+import           Cardano.LTL.Lang.Formula (Formula, PropTerm (..), PropValue,
+                                           PropVarIdentifier, Relevance)
+import qualified Cardano.LTL.Lang.Formula as F
+import           Data.Function            (on)
+import           Data.Functor             ((<&>))
+import           Data.Set                 (Set)
+import qualified Data.Set                 as Set
 
 data ExtendedPropValue = Val PropValue | Placeholder deriving (Show, Ord, Eq)
 
@@ -33,16 +37,6 @@ data HomogeneousFormula ty =
    | PropForall PropVarIdentifier (HomogeneousFormula ty)
    | PropEq (Relevance ty) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
-
-toGuardedFormula :: HomogeneousFormula ty -> GuardedFormula ty
-toGuardedFormula (And a b)             = G.And (toGuardedFormula a) (toGuardedFormula b)
-toGuardedFormula (Or a b)              = G.Or (toGuardedFormula a) (toGuardedFormula b)
-toGuardedFormula (Implies a b)         = G.Implies (toGuardedFormula a) (toGuardedFormula b)
-toGuardedFormula (Not a)               = G.Not (toGuardedFormula a)
-toGuardedFormula Bottom                = G.Bottom
-toGuardedFormula Top                   = G.Top
-toGuardedFormula (PropEq e a b)        = G.PropEq e a b
-toGuardedFormula (PropForall x phi)    = G.PropForall x (toGuardedFormula phi)
 
 toFormula :: HomogeneousFormula ty -> Formula ty
 toFormula (And a b)          = F.And (toFormula a) (toFormula b)
@@ -115,18 +109,28 @@ quote False = Bottom
 equiv :: HomogeneousFormula ty -> HomogeneousFormula ty -> Bool
 equiv = on (==) eval
 
-retract :: GuardedFormula ty -> Maybe (HomogeneousFormula ty)
+retract :: Formula ty -> Maybe (HomogeneousFormula ty)
 retract = go Set.empty where
-  go :: Set PropVarIdentifier -> GuardedFormula ty -> Maybe (HomogeneousFormula ty)
-  go _     (G.Next _)                  = Nothing
-  go bound (G.And phi psi)             = And <$> go bound phi <*> go bound psi
-  go bound (G.Or phi psi)              = Or <$> go bound phi <*> go bound psi
-  go bound (G.Implies phi psi)         = Implies <$> go bound phi <*> go bound psi
-  go bound (G.Not phi)                 = Not <$> go bound phi
-  go _     G.Bottom                    = Just Bottom
-  go _     G.Top                       = Just Top
-  go _     (G.PropEq rel (Const v') v) = Just (PropEq rel (Const v') v)
-  go bound (G.PropEq rel (Var x) v)
+  go :: Set PropVarIdentifier -> Formula ty -> Maybe (HomogeneousFormula ty)
+  go _     (F.ForallN {})              = Nothing
+  go _     (F.ExistsN {})              = Nothing
+  go _     (F.Forall {})               = Nothing
+  go _     (F.NextN {})                = Nothing
+  go _     (F.UntilN {})               = Nothing
+  go _     (F.PropAtom {})             = Nothing
+  go _     (F.Next _)                  = Nothing
+  go bound (F.And phi psi)             = And <$> go bound phi <*> go bound psi
+  go bound (F.Or phi psi)              = Or <$> go bound phi <*> go bound psi
+  go bound (F.Implies phi psi)         = Implies <$> go bound phi <*> go bound psi
+  go bound (F.Not phi)                 = Not <$> go bound phi
+  go _     F.Bottom                    = Just Bottom
+  go _     F.Top                       = Just Top
+  go _     (F.PropEq rel (Const v') v) = Just (PropEq rel (Const v') v)
+  go bound (F.PropEq rel (Var x) v)
                 | Set.member x bound   = Just (PropEq rel (Var x) v)
-  go _     (G.PropEq _ (Var _) _)      = Nothing
-  go bound (G.PropForall x phi)        = PropForall x <$> go (Set.insert x bound) phi
+  go _     (F.PropEq _ (Var _) _)      = Nothing
+  go bound (F.PropForall x phi)        = PropForall x <$> go (Set.insert x bound) phi
+
+normaliseHomogeneous :: Formula ty -> Maybe (Formula ty)
+normaliseHomogeneous phi =
+  toFormula . quote . eval <$> retract phi

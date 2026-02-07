@@ -24,7 +24,6 @@ library
                     , Cardano.LTL.Lang.Fragment.Fragment0
                     , Cardano.LTL.Lang.Fragment.Fragment1
                     , Cardano.LTL.Lang.Fragment.Fragment2
-                    , Cardano.LTL.Lang.GuardedFormula
                     , Cardano.LTL.Lang.HomogeneousFormula
                     , Cardano.LTL.Occurs
                     , Cardano.LTL.Pretty
@@ -64,9 +63,9 @@ library
 
       Strict
 
-executable cardano-trace-ltl-verify
+executable cardano-trace-ltl-sanitizer
     import:           warnings
-    main-is:          Verify.hs
+    main-is:          TraceSanitizer.hs
 
     other-modules:
     other-extensions:
@@ -83,16 +82,16 @@ executable cardano-trace-ltl-verify
 
 
     -- Directories containing source files.
-    hs-source-dirs:   demo
+    hs-source-dirs:   app
 
     -- Base language which the package is written in.
     default-language: GHC2021
 
     default-extensions: Strict
 
-executable cardano-trace-ltl-test-parser
+executable cardano-trace-ltl-parser
     import:           warnings
-    main-is:          TestParser.hs
+    main-is:          Parser.hs
 
     other-modules:
     other-extensions:
@@ -110,16 +109,16 @@ executable cardano-trace-ltl-test-parser
 
 
     -- Directories containing source files.
-    hs-source-dirs:   demo
+    hs-source-dirs:   app
 
     -- Base language which the package is written in.
     default-language: GHC2021
 
     default-extensions: Strict
 
-executable cardano-trace-ltl-demo
+executable cardano-trace-ltl-verifier
     import:           warnings
-    main-is:          Demo.hs
+    main-is:          TraceVerifier.hs
 
     ghc-options:      -O2
                       -threaded
@@ -142,7 +141,7 @@ executable cardano-trace-ltl-demo
 
 
     -- Directories containing source files.
-    hs-source-dirs:   demo
+    hs-source-dirs:   app
 
     -- Base language which the package is written in.
     default-language: GHC2021
