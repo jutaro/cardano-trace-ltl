@@ -3,15 +3,15 @@
 module Cardano.LTL.Progress(next, terminate) where
 
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula)
-import qualified Cardano.LTL.Lang.Internal.GuardedFormula     as G
-import           Cardano.LTL.Lang.Internal.HomogeneousFormula (HomogeneousFormula)
-import qualified Cardano.LTL.Lang.Internal.HomogeneousFormula as H
-import           Data.Map.Strict                              (lookup)
-import qualified Data.Set                                     as Set
-import           Prelude                                      hiding (lookup)
+import           Cardano.LTL.Lang.GuardedFormula     (GuardedFormula)
+import qualified Cardano.LTL.Lang.GuardedFormula     as G
+import           Cardano.LTL.Lang.HomogeneousFormula (HomogeneousFormula)
+import qualified Cardano.LTL.Lang.HomogeneousFormula as H
+import           Data.Map.Strict                     (lookup)
+import qualified Data.Set                            as Set
+import           Prelude                             hiding (lookup)
 #ifdef CRITICAL_ERROR_ON_MISSING_KEY
-import qualified Data.Text                                    as Text
+import qualified Data.Text                           as Text
 #endif
 
 -- This file concerns algorithmically checking formula satisfiability.

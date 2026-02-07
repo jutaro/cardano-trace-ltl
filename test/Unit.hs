@@ -3,19 +3,20 @@
 
 module Main(main) where
 
-import           Cardano.LTL.Check        (Error (..), checkFormula)
+import           Cardano.LTL.Check               (Error (..), checkFormula)
 import           Cardano.LTL.Lang.Formula
-import qualified Cardano.LTL.Lang.Prec    as Prec
-import           Cardano.LTL.Pretty       (prettyFormula)
-import           Cardano.LTL.Satisfy      (SatisfactionResult (..), satisfies)
-import           Data.Map                 (singleton)
-import           Data.Set                 (fromList)
-import           Data.Text                (unpack, Text)
+import qualified Cardano.LTL.Lang.Formula.Parser as Parser
+import qualified Cardano.LTL.Lang.Formula.Prec   as Prec
+import           Cardano.LTL.Pretty              (prettyFormula)
+import           Cardano.LTL.Satisfy             (SatisfactionResult (..),
+                                                  satisfies)
+import           Data.Map                        (singleton)
+import           Data.Set                        (fromList)
+import           Data.Text                       (Text, unpack)
+import qualified Data.Text                       as Text
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import qualified Data.Text as Text
-import Text.Megaparsec
-import qualified Cardano.LTL.Lang.Parser as Parser
+import           Text.Megaparsec
 
 type Identifier = EventIndex
 

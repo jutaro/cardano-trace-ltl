@@ -10,11 +10,11 @@ module Cardano.LTL.Pretty (
   , prettyFormula) where
 
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Lang.Prec    (Prec)
-import qualified Cardano.LTL.Lang.Prec    as Prec
-import qualified Data.Set                 as Set
-import           Data.Text                (Text, intercalate, pack)
-import qualified Data.Text                as Text
+import           Cardano.LTL.Lang.Formula.Prec (Prec)
+import qualified Cardano.LTL.Lang.Formula.Prec as Prec
+import qualified Data.Set                      as Set
+import           Data.Text                     (Text, intercalate, pack)
+import qualified Data.Text                     as Text
 
 -- | Add parentheses when an inner precedence exceeds the outer one.
 surround :: Prec -> Prec -> Text -> Text

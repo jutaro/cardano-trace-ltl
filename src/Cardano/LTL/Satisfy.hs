@@ -14,22 +14,21 @@ module Cardano.LTL.Satisfy(
 import           Cardano.LTL.Lang.Formula
 import           Cardano.LTL.Rewrite
 
-import           Prelude                                      hiding (lookup)
+import           Prelude                                  hiding (lookup)
 
-import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula,
-                                                               forward)
-import           Cardano.LTL.Lang.Internal.HomogeneousFormula (eval)
+import           Cardano.LTL.Lang.GuardedFormula          (GuardedFormula,
+                                                           forward)
+import           Cardano.LTL.Lang.HomogeneousFormula      (eval)
 import           Cardano.LTL.Progress
-import           Data.IORef                                   (IORef,
-                                                               modifyIORef')
-import           Data.Word                                    (Word64)
+import           Data.IORef                               (IORef, modifyIORef')
+import           Data.Word                                (Word64)
 import           Streaming
 #ifdef TRACE
-import           Cardano.LTL.Lang.Internal.GuardedFormula     (toFormula)
-import qualified Cardano.LTL.Prec                             as Prec
-import           Cardano.LTL.Pretty                           (prettyFormula)
-import qualified Data.Text                                    as Text
-import           Debug.Trace                                  (trace)
+import           Cardano.LTL.Lang.Internal.GuardedFormula (toFormula)
+import qualified Cardano.LTL.Prec                         as Prec
+import           Cardano.LTL.Pretty                       (prettyFormula)
+import qualified Data.Text                                as Text
+import           Debug.Trace                              (trace)
 #endif
 
 

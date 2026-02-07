@@ -1,19 +1,18 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module Cardano.LTL.Lang.Internal.HomogeneousFormula (
+module Cardano.LTL.Lang.HomogeneousFormula (
     HomogeneousFormula(..)
   , toGuardedFormula, toFormula, values, substHomogeneousFormula, eval, quote, equiv, retract) where
 
-import           Cardano.LTL.Lang.Formula                 (Formula, PropTerm (..),
-                                                           PropValue,
-                                                           PropVarIdentifier,
-                                                           Relevance)
-import qualified Cardano.LTL.Lang.Formula                 as F
-import           Cardano.LTL.Lang.Internal.GuardedFormula (GuardedFormula)
-import qualified Cardano.LTL.Lang.Internal.GuardedFormula as G
-import           Data.Function                            (on)
-import           Data.Functor                             ((<&>))
-import           Data.Set                                 (Set)
-import qualified Data.Set                                 as Set
+import           Cardano.LTL.Lang.Formula        (Formula, PropTerm (..),
+                                                  PropValue, PropVarIdentifier,
+                                                  Relevance)
+import qualified Cardano.LTL.Lang.Formula        as F
+import           Cardano.LTL.Lang.GuardedFormula (GuardedFormula)
+import qualified Cardano.LTL.Lang.GuardedFormula as G
+import           Data.Function                   (on)
+import           Data.Functor                    ((<&>))
+import           Data.Set                        (Set)
+import qualified Data.Set                        as Set
 
 data ExtendedPropValue = Val PropValue | Placeholder deriving (Show, Ord, Eq)
 
@@ -109,7 +108,7 @@ eval (PropForall x phi) = eval (substHomogeneousFormula Placeholder x phi) &&
 
 -- | This is the "easy" part of the iso: `HomogeneousFormula` ≅ `Bool`
 quote :: Bool -> HomogeneousFormula ty
-quote True = Top
+quote True  = Top
 quote False = Bottom
 
 -- | Check equivalence of two `HomogeneousFormula`s.

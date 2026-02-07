@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module Cardano.LTL.Lang.Internal.GuardedFormula (
+module Cardano.LTL.Lang.GuardedFormula (
     GuardedFormula(..)
   , and
   , toFormula

@@ -17,14 +17,15 @@ library
     exposed-modules:
                       Cardano.LTL.Check
                     , Cardano.LTL.Lang.Formula
-                    , Cardano.LTL.Lang.Prec
-                    , Cardano.LTL.Lang.Parser
-                    , Cardano.LTL.Lang.Internal.Fragment
-                    , Cardano.LTL.Lang.Internal.Fragment0
-                    , Cardano.LTL.Lang.Internal.Fragment1
-                    , Cardano.LTL.Lang.Internal.Fragment2
-                    , Cardano.LTL.Lang.Internal.GuardedFormula
-                    , Cardano.LTL.Lang.Internal.HomogeneousFormula
+                    , Cardano.LTL.Lang.Formula.Parser
+                    , Cardano.LTL.Lang.Formula.Prec
+                    , Cardano.LTL.Lang.Formula.Yaml
+                    , Cardano.LTL.Lang.Fragment
+                    , Cardano.LTL.Lang.Fragment.Fragment0
+                    , Cardano.LTL.Lang.Fragment.Fragment1
+                    , Cardano.LTL.Lang.Fragment.Fragment2
+                    , Cardano.LTL.Lang.GuardedFormula
+                    , Cardano.LTL.Lang.HomogeneousFormula
                     , Cardano.LTL.Occurs
                     , Cardano.LTL.Pretty
                     , Cardano.LTL.Progress
@@ -49,6 +50,7 @@ library
                     , aeson
                     , streaming
                     , megaparsec
+                    , yaml
 
     hs-source-dirs:   src
 

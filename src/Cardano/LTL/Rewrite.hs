@@ -8,13 +8,13 @@ module Cardano.LTL.Rewrite(
   ) where
 
 import           Cardano.LTL.Lang.Formula
-import           Cardano.LTL.Lang.Internal.Fragment           (findAtoms,
-                                                               normaliseFragment)
-import           Cardano.LTL.Lang.Internal.GuardedFormula     (GuardedFormula)
-import qualified Cardano.LTL.Lang.Internal.GuardedFormula     as G
-import qualified Cardano.LTL.Lang.Internal.HomogeneousFormula as H
-import           Data.Set                                     (Set)
-import           Prelude                                      hiding (lookup)
+import           Cardano.LTL.Lang.Fragment           (findAtoms,
+                                                      normaliseFragment)
+import           Cardano.LTL.Lang.GuardedFormula     (GuardedFormula)
+import qualified Cardano.LTL.Lang.GuardedFormula     as G
+import qualified Cardano.LTL.Lang.HomogeneousFormula as H
+import           Data.Set                            (Set)
+import           Prelude                             hiding (lookup)
 
 -- This file concerns applying rewrite rules to a formula.
 -- The rewrite rules must be logical identities, hence all rewrites here produce logically equivalent formulas.

@@ -1,5 +1,5 @@
 {- HLINT ignore "Use <$>" -}
-module Cardano.LTL.Lang.Parser (text, formula) where
+module Cardano.LTL.Lang.Formula.Parser (Parser, text, formula) where
 
 
 import           Cardano.LTL.Lang.Formula
@@ -58,7 +58,7 @@ subscriptDigit = 0 <$ char '₀'
 littleEndian :: Word -> [Word] -> Word
 littleEndian radix = go 0 1 where
   go :: Word -> Word -> [Word] -> Word
-  go acc _ [] = acc
+  go acc _ []            = acc
   go acc factor (d : ds) = go (acc + d * factor) (radix * factor) ds
 
 bigEndian :: Word -> [Word] -> Word
