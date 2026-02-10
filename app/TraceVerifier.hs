@@ -194,6 +194,7 @@ main = do
   (!formulasFile, !mode, !dur, !traces) <- getArgs >>= readArgs
   case mode of
     Offline -> do
+      -- TODO: What shall we do with offline mode?
       let [file] = traces
       events <- read file dur
       check (prop1 dur) events
