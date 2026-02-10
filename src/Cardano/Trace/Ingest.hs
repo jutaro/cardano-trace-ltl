@@ -121,7 +121,7 @@ ingestFileThreaded Ingestor{ingInBuffer, ingRetentionMs} failMode ingestMode fp 
           thread
       pure Nothing
   where
-    pollingDelay = max 20 (ingRetentionMs `div` 40)
+    pollingDelay = 1000 * max 20 (ingRetentionMs `div` 40)
     filePathHash = djb2 fp
 
     thread = withFile fp ReadMode $ \hdl -> do
