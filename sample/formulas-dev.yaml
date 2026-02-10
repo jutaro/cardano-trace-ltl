@@ -1,0 +1,3 @@
+# This currently won't work as one could hope it would, as we assume `n` ranges over all possible strings and ints.
+# We need to introduce typed domains (finite and infinite) to remedy that.
+- ☐ ᪲ (∀b. "Forge.Loop.ForgedBlock"("block" = b) ⇒ (∀n. ♢³ ("Forge.Loop.AdoptedBlock"("blockHash" = b, "node-id" = n))))

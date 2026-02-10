@@ -5,18 +5,19 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
-module Cardano.Trace.Feed(Filename, TemporalEvent(..), TemporalEventDurationMicrosec, read, readS, verify) where
+module Cardano.Trace.Feed(Filename, TemporalEvent(..), TemporalEventDurationMicrosec, read, readS, sanitize) where
 
 import           Cardano.Logging.Types.TraceMessage
 
 import           Prelude                            hiding (read)
 
 import           Cardano.LTL.Lang.Formula           (EventIndex)
+import           Cardano.Trace.Ingest               (IngestorReader (..))
 import           Data.Aeson                         (encode, throwDecodeStrict)
 import qualified Data.ByteString.Char8              as BChar8
+import qualified Data.Foldable                      as Foldable
 import           Data.List                          (sortBy)
 import           Data.Sequence                      (Seq, (|>))
-import qualified Data.Foldable                      as Foldable
 import           Data.Time.Clock                    (UTCTime)
 import           Data.Time.Clock.POSIX              (utcTimeToPOSIXSeconds)
 import           Data.Word                          (Word64)
@@ -40,13 +41,13 @@ data TemporalEvent = TemporalEvent {
 }
 
 -- | For performance considerations we group trace messages within the specified duration in one `TemporalEvent`.
-type TemporalEventDurationMicrosec = Word64
+type TemporalEventDurationMicrosec = Word
 
 -- | Fill in one temporal event.
 --   Returns the event, the starting time boundary of the next temporal event and the rest of the messages.
 fill :: EventIndex -> TemporalEventDurationMicrosec -> Seq TraceMessage -> Word64 -> [TraceMessage] -> (TemporalEvent, Word64, [TraceMessage], EventIndex)
-fill idx duration acc t (x : xs) | utcToMicroseconds x.tmsgAt  <= t + duration = fill idx duration (acc |> x) t xs
-fill idx duration acc t rest = (TemporalEvent t (Foldable.toList acc) idx, t + duration, rest, idx + 1)
+fill idx duration acc t (x : xs) | utcToMicroseconds x.tmsgAt  <= t + fromIntegral duration = fill idx duration (acc |> x) t xs
+fill idx duration acc t rest = (TemporalEvent t (Foldable.toList acc) idx, t + fromIntegral duration, rest, idx + 1)
 
 -- | Slice up the trace messages into consequtive temporal events.
 slice :: TemporalEventDurationMicrosec -> [TraceMessage] -> [TemporalEvent]
@@ -100,8 +101,8 @@ data TemporalEventBuilderSt = TemporalEventBuilderSt {
 --   If a line in conflict with the above property is found, prompt the user to either keep it or delete the line.
 --   The input file is not mutated. Rather, it is copied over line-by-line to the output file with offending lines dropped if so
 --   desired by the user.
-verify :: Filename -> Filename -> IO ()
-verify input output = do
+sanitize :: Filename -> Filename -> IO ()
+sanitize input output = do
   inputH <- openFile input ReadMode
   outputH <- openFile output WriteMode
   readLine inputH >>= \case
@@ -136,38 +137,27 @@ verify input output = do
 
 
 
--- TODO: Support multiple files. The input shall be sorted and buffered for a configurable
--- period of time. Once the time elapses, the input shall be sorted.
--- This is a prevention measure for the trace messages appearing out of order sometime.
-readS :: Filename -> TemporalEventDurationMicrosec -> Stream (Of TemporalEvent) IO ()
-readS filename duration = do
-  handle <- lift $ openFile filename ReadMode
-  lift (readLine handle) >>= \case
-    Nothing -> pure ()
-    Just firstMsg -> do
-      unfold (go handle) $
-       TemporalEventBuilderSt
-         { nextBuffered = Just firstMsg
-         , nextIdx = 0
-         , nextBeg = utcToMicroseconds firstMsg.tmsgAt
-         , nextMsgs = mempty
-         , nextTerminal = False
-         }
+readS :: IngestorReader -> TemporalEventDurationMicrosec -> Stream (Of TemporalEvent) IO ()
+readS ingestor duration = do
+  firstMsg <- lift (ingestor.readLineIngestor >>= throwDecodeStrict)
+  unfold go $
+   TemporalEventBuilderSt
+     { nextBuffered = Just firstMsg
+     , nextIdx = 0
+     , nextBeg = utcToMicroseconds firstMsg.tmsgAt
+     , nextMsgs = mempty
+     , nextTerminal = False
+     }
   where
-    go :: Handle
-      -> TemporalEventBuilderSt
-      -> IO (Either () (Of TemporalEvent TemporalEventBuilderSt))
-    go _ TemporalEventBuilderSt{nextTerminal = True} = pure (Left ())
-    go handle TemporalEventBuilderSt{nextBuffered = Nothing, ..} = readLine handle >>= \case
-      Nothing -> pure $ Right $
-        TemporalEvent nextBeg (Foldable.toList nextMsgs) nextIdx
-          :>
-        TemporalEventBuilderSt Nothing (nextIdx + 1) nextBeg mempty True
-      Just msg ->
-        go handle (TemporalEventBuilderSt (Just msg) nextIdx nextBeg nextMsgs False)
-    go handle TemporalEventBuilderSt{nextBuffered = Just msg, ..} | utcToMicroseconds msg.tmsgAt <= nextBeg + duration =
-        go handle (TemporalEventBuilderSt Nothing nextIdx nextBeg (nextMsgs |> msg) False)
-    go _ TemporalEventBuilderSt{nextBuffered = Just msg, ..} = pure $ Right $
+    go :: TemporalEventBuilderSt
+       -> IO (Either () (Of TemporalEvent TemporalEventBuilderSt))
+    go TemporalEventBuilderSt{nextTerminal = True} = pure (Left ())
+    go TemporalEventBuilderSt{nextBuffered = Nothing, ..} = do
+      msg <- readLineIngestor ingestor >>= throwDecodeStrict
+      go (TemporalEventBuilderSt (Just msg) nextIdx nextBeg nextMsgs False)
+    go TemporalEventBuilderSt{nextBuffered = Just msg, ..} | utcToMicroseconds msg.tmsgAt <= nextBeg + fromIntegral duration =
+        go (TemporalEventBuilderSt Nothing nextIdx nextBeg (nextMsgs |> msg) False)
+    go TemporalEventBuilderSt{nextBuffered = Just msg, ..} = pure $ Right $
       TemporalEvent nextBeg (Foldable.toList nextMsgs) nextIdx
         :>
-      TemporalEventBuilderSt (Just msg) (nextIdx + 1) (nextBeg + duration) mempty False
+      TemporalEventBuilderSt (Just msg) (nextIdx + 1) (nextBeg + fromIntegral duration) mempty False

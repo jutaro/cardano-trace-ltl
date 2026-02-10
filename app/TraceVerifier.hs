@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -9,6 +10,8 @@ import           Cardano.Logging.Types.TraceMessage (TraceMessage (..))
 import           Cardano.LTL.Lang.Formula
 import           Cardano.LTL.Satisfy
 
+import qualified Cardano.LTL.Lang.Formula.Parser    as Parser
+import           Cardano.LTL.Lang.Formula.Yaml
 import           Prelude                            hiding (read)
 
 import qualified Cardano.LTL.Lang.Formula.Prec      as Prec
@@ -17,23 +20,36 @@ import           Cardano.Trace.Feed                 (Filename,
                                                      TemporalEvent (..),
                                                      TemporalEventDurationMicrosec,
                                                      read, readS)
-import           Control.Concurrent                 (forkIO, killThread,
-                                                     threadDelay)
+import           Cardano.Trace.Ingest
+import           Control.Concurrent.Async           (async, wait)
 import           Data.Aeson
-import           Data.IORef                         (IORef, newIORef, readIORef)
+import           Data.Foldable                      (for_, traverse_)
+import           Data.IORef                         (newIORef)
 import           Data.List                          (find)
 import           Data.Map                           (singleton)
-import           Data.Maybe                         (isJust)
+import           Data.Maybe                         (isJust, mapMaybe)
 import           Data.Set                           (fromList)
 import qualified Data.Set                           as Set
 import           Data.Text                          (Text, intercalate, pack,
                                                      unpack)
-import qualified Data.Text.IO                       as Text
+import           Data.Traversable                   (for)
 import           GHC.Generics                       (Generic)
 import           Streaming
 import           System.Environment                 (getArgs)
 import           System.Exit                        (die)
 import           Text.Read                          (readMaybe)
+import qualified Data.Text as Text
+import Data.Map.Strict (Map)
+import qualified Data.Map as Map
+import qualified Data.Aeson.KeyMap as KeyMap
+import Debug.Trace (trace)
+import Data.Aeson.Key (toText)
+#ifdef METRICS
+import           Control.Concurrent                 (forkIO, killThread,
+                                                     threadDelay)
+import           Data.IORef                         (IORef, readIORef)
+import qualified Data.Text.IO                       as Text
+#endif
 
 newtype TraceProps = TraceProps { slot :: Int } deriving (Show, Eq, Ord, Generic)
 
@@ -43,15 +59,20 @@ deriving instance Eq TraceMessage
 
 deriving instance Ord TraceMessage
 
+extractProps :: Object -> Map PropVarIdentifier PropValue
+extractProps = Map.fromList . mapMaybe parse . KeyMap.toList
+  where
+    parse :: (Key, Value) -> Maybe (PropVarIdentifier, PropValue)
+    parse (k, Number v) = Just (toText k, IntValue (truncate v))
+    parse (k, String v) = Just (toText k, TextValue v)
+    parse _ = Nothing
+
 instance Event TemporalEvent Text where
-  ofTy (TemporalEvent _ msgs _) c = isJust $ find (\msg -> tmsgNS msg == c) msgs
+  ofTy (TemporalEvent _ msgs _) c = isJust $ find (\msg -> msg.tmsgNS == c) msgs
   index (TemporalEvent _ _ idx) = idx
   props (TemporalEvent _ msgs _) c =
-    case find (\msg -> tmsgNS msg == c) msgs of
-      Just x ->
-        case fromJSON (Object (tmsgData x)) of
-          Error err                 -> error ("json parsing error " <> err)
-          Success (TraceProps slot) -> singleton "slot" (IntValue slot)
+    case find (\msg -> msg.tmsgNS == c) msgs of
+      Just x -> extractProps x.tmsgData
       Nothing -> error ("Not an event of type " <> unpack c)
   beg (TemporalEvent t _ _) = t
 
@@ -88,14 +109,19 @@ check :: Formula Text -> [TemporalEvent] -> IO ()
 check phi events =
   putStrLn (unpack $ prettySatisfactionResult events phi (satisfies phi events))
 
-checkS :: Formula Text -> Stream (Of TemporalEvent) IO () -> IO ()
-checkS phi events = do
+checkS' :: Formula Text -> Stream (Of TemporalEvent) IO () -> IO ()
+checkS' phi events = do
   let initial = SatisfyMetrics 0 phi 0
   metrics <- newIORef initial
+#ifdef METRICS
   counterDisplayThread <- forkIO (runDisplay initial metrics)
+#endif
   (consumed, r) <- satisfiesS phi events metrics
   putStrLn (unpack $ prettySatisfactionResult consumed phi r)
+#ifdef METRICS
   killThread counterDisplayThread
+#endif
+#ifdef METRICS
   where
     runDisplay :: SatisfyMetrics Text -> IORef (SatisfyMetrics Text) -> IO ()
     runDisplay prev counter = do
@@ -107,6 +133,17 @@ checkS phi events = do
       Text.putStrLn $ "Formula: " <> prettyFormula next.currentFormula Prec.Universe
       threadDelay 1_000_000 -- 1s
       runDisplay next counter
+#endif
+
+checkRealtime :: TemporalEventDurationMicrosec -> Int -> FailureMode -> IngestMode -> [Filename] -> [Formula Text] -> IO ()
+checkRealtime eventDuration minRentionMs failureMode ingestMode files phis = do
+  ing <- mkIngestor minRentionMs
+  for_ files (ingestFileThreaded ing failureMode ingestMode)
+  threads <- for phis $ \phi -> async $ do
+    reader <- mkIngestorReader ing
+    checkS' phi (readS reader eventDuration)
+  traverse_ wait threads
+
 
 -- ☐ ᪲ (∀i. StartLeadershipCheck("slot" = i) ⇒ ♢(1s) (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)))
 prop1 :: TemporalEventDurationMicrosec -> Formula Text
@@ -122,8 +159,8 @@ prop1 dur = Forall 0 $ PropForall "i" $
 
 -- ☐ ᪲(1s) (∀i. (¬ (NodeIsLeader("slot" = i) ∨ NodeNotLeader("slot" = i)) |˜(1s) StartLeadershipCheck("slot" = i)))
 prop2 :: TemporalEventDurationMicrosec -> Formula Text
-prop2 dur = Forall (floor ((10000000 :: Double) / fromIntegral dur)) $ PropForall "i" $ UntilN
-  (floor ((10000000 :: Double) / fromIntegral dur))
+prop2 dur = Forall (floor ((1000000 :: Double) / fromIntegral dur)) $ PropForall "i" $ UntilN
+  (floor ((1000000 :: Double) / fromIntegral dur))
   (Not $
     Or
       (PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
@@ -147,22 +184,27 @@ readMode "online"  = Just Online
 readMode "offline" = Just Offline
 readMode _         = Nothing
 
-readArgs :: [String] -> IO (Filename, Mode, TemporalEventDurationMicrosec)
-readArgs [x, readMode -> Just mode ,readMaybe -> Just dur]
-                                    = pure (x, mode, dur)
-readArgs _                          = die "Usage: $ <filename> <duration>"
+readArgs :: [String] -> IO (Filename, Mode, TemporalEventDurationMicrosec, [Filename])
+readArgs (phis : (readMode -> Just mode) : (readMaybe -> Just dur) : "--" : traces)
+                                    = pure (phis, mode, dur, traces)
+readArgs _                          = die "Usage: $ <filename> <offline|online> <duration> -- [<filename>]"
 
 main :: IO ()
 main = do
-  (!filename, !mode, !dur) <- getArgs >>= readArgs
+  (!formulasFile, !mode, !dur, !traces) <- getArgs >>= readArgs
   case mode of
     Offline -> do
-      events <- read filename dur
+      let [file] = traces
+      events <- read file dur
       check (prop1 dur) events
       check (prop2 dur) events
       check (prop3 dur) events
     Online -> do
-      let eventStream = readS filename dur
-      checkS (prop1 dur) eventStream
-      checkS (prop2 dur) eventStream
-      checkS (prop3 dur) eventStream
+      formulas <- readYaml formulasFile Parser.text >>= dieOnYamlException
+      let formulas' = fmap (interpTimeunit (\sec -> sec * 1_000_000 `div` fromIntegral dur)) formulas
+      for_ formulas' print
+      checkRealtime dur 200 RethrowExceptions FromFileStart traces formulas'
+  where
+    dieOnYamlException :: Either Exception [Formula Text] -> IO [Formula Text]
+    dieOnYamlException (Left exc) = die (Text.unpack exc)
+    dieOnYamlException (Right ok) = pure ok

@@ -22,8 +22,7 @@ import           Data.IORef                               (IORef, modifyIORef')
 import           Data.Word                                (Word64)
 import           Streaming
 #ifdef TRACE
-import           Cardano.LTL.Lang.Internal.GuardedFormula (toFormula)
-import qualified Cardano.LTL.Prec                         as Prec
+import qualified Cardano.LTL.Lang.Formula.Prec            as Prec
 import           Cardano.LTL.Pretty                       (prettyFormula)
 import qualified Data.Text                                as Text
 import           Debug.Trace                              (trace)

@@ -64,13 +64,11 @@ littleEndian radix = go 0 1 where
 bigEndian :: Word -> [Word] -> Word
 bigEndian radix = littleEndian radix . reverse
 
--- | Can be empty (= 0)
 superscriptWord :: Parser Word
-superscriptWord = bigEndian 10 <$> many superscriptDigit
+superscriptWord = bigEndian 10 <$> some superscriptDigit
 
--- | Can be empty (= 0)
 subscriptWord :: Parser Word
-subscriptWord = bigEndian 10 <$> many subscriptDigit
+subscriptWord = bigEndian 10 <$> some subscriptDigit
 
 int :: Parser Int
 int = signed (pure ()) decimal
@@ -111,7 +109,7 @@ formulaNext :: Parser ty -> Parser (Formula ty)
 formulaNext ty = Next <$> (string "◯" *> space *> formulaAtom ty)
 
 formulaNextN :: Parser ty -> Parser (Formula ty)
-formulaNextN ty = NextN <$> (string "◯" *> superscriptWord <* space) <*> formulaAtom ty
+formulaNextN ty = NextN <$> (try (string "◯" *> superscriptWord) <* space) <*> formulaAtom ty
 
 formulaExistsN :: Parser ty -> Parser (Formula ty)
 formulaExistsN ty = ExistsN <$> (string "♢" *> superscriptWord <* space) <*> formulaAtom ty
@@ -120,7 +118,7 @@ formulaForallN :: Parser ty -> Parser (Formula ty)
 formulaForallN ty = ForallN <$> (string "☐" *> superscriptWord <* space) <*> formulaAtom ty
 
 formulaForall :: Parser ty -> Parser (Formula ty)
-formulaForall ty = ForallN <$> (string "☐ ᪲" *> subscriptWord <* space) <*> formulaAtom ty
+formulaForall ty = Forall <$> (string "☐ ᪲" *> option 0 subscriptWord <* space) <*> formulaAtom ty
 
 formulaNot :: Parser ty -> Parser (Formula ty)
 formulaNot ty = Not <$> (string "¬" *> space *> formulaAtom ty)
