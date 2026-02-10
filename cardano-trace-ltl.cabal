@@ -41,6 +41,7 @@ library
     build-depends:    base
                     , containers
                     , text
+                    , directory
                     , trace-dispatcher ^>= 2.11
                     , serialise
                     , bytestring
@@ -49,6 +50,7 @@ library
                     , aeson
                     , streaming
                     , megaparsec
+                    , unagi-chan
                     , yaml
 
     hs-source-dirs:   src
