@@ -16,6 +16,7 @@ module Cardano.LTL.Lang.Formula (
   , relevance
   , Relevance
   , and
+  , interpTimeunit
   , Event(..)) where
 
 import           Data.Map.Strict (Map)
@@ -175,6 +176,26 @@ and :: [Formula ty] -> Formula ty
 and []           = Top
 and [phi]        = phi
 and (phi : phis) = And phi (and phis)
+
+-- | It's useful to express temporal aspect of the formulas in a familiar time unit (e.g milliseconds).
+--   Yet, the LTL machinery works with nameless abstract time units.
+--   This function can be used to convert one into the other.
+interpTimeunit :: (Word -> Word) -> Formula ty -> Formula ty
+interpTimeunit f (Forall k phi) = Forall (f k) (interpTimeunit f phi)
+interpTimeunit f (ForallN k phi) = ForallN (f k) (interpTimeunit f phi)
+interpTimeunit f (ExistsN k phi) = ExistsN (f k) (interpTimeunit f phi)
+interpTimeunit f (Next phi) = Next (interpTimeunit f phi)
+interpTimeunit f (NextN k phi) = NextN (f k) (interpTimeunit f phi)
+interpTimeunit f (UntilN k phi psi) = UntilN (f k) (interpTimeunit f phi) (interpTimeunit f psi)
+interpTimeunit f (Not phi) = Not (interpTimeunit f phi)
+interpTimeunit f (Or phi psi) = Or (interpTimeunit f phi) (interpTimeunit f psi)
+interpTimeunit f (And phi psi) = And (interpTimeunit f phi) (interpTimeunit f psi)
+interpTimeunit f (Implies phi psi) = Implies (interpTimeunit f phi) (interpTimeunit f psi)
+interpTimeunit _ Top = Top
+interpTimeunit _ Bottom = Bottom
+interpTimeunit _ phi@PropAtom{} = phi
+interpTimeunit _ phi@PropEq{} = phi
+interpTimeunit f (PropForall x phi) = PropForall x (interpTimeunit f phi)
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
 -- (∅ ⊧ ◯ (φ ∨ ψ))  ⇔ (∅ ⊧ ◯ φ) ∨ (∅ ⊧ ◯ ψ)

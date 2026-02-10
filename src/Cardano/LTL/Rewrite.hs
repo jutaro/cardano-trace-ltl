@@ -15,7 +15,7 @@ import Data.Maybe (fromMaybe)
 -- This file concerns applying rewrite rules to a formula.
 -- The rewrite rules must be logical identities, hence all rewrites here produce logically equivalent formulas.
 
--- | Call the given function on all sub-elements of the formula recursively
+-- | Call the given function on all sub-expressions of the formula recursively
 --   up to any temporal operator (= heterogeneous fragment), exclusively.
 recurseHomogeneous :: (Formula ty -> Maybe (Formula ty)) -> Formula ty -> Formula ty
 recurseHomogeneous _ self@(PropAtom {}) = self

@@ -140,6 +140,7 @@ executable cardano-trace-ltl-verifier
       , trace-dispatcher ^>= 2.11
       , aeson
       , streaming
+      , async
 
 
     -- Directories containing source files.

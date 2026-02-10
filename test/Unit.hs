@@ -210,13 +210,20 @@ formula1 :: Text
 formula1 =
   "☐ ᪲₄₂ (∀i. (¬ (\"NodeIsLeader\"(\"slot\" = i) ∨ \"NodeNotLeader\"(\"slot\" = i)) |¹²³ \"StartLeadershipCheck\"(\"slot\" = i)))"
 
+formula2 :: Text
+formula2 =
+  "☐² (⊥ ∨ ◯ ⊤ ∧ ◯² (◯¹ (◯⁰ ⊤)))"
+
+formula3 :: Text
+formula3 = "☐ ᪲₁ ⊤"
+
 parserTests :: TestTree
 parserTests = testGroup "Parsing"
   [
     testCase (Text.unpack formula0) $
       parse (Parser.formula Parser.text) "input" formula0 @?=
         Right
-          (ForallN
+          (Forall
             0
             (PropForall
               "x"
@@ -231,7 +238,7 @@ parserTests = testGroup "Parsing"
     testCase (Text.unpack formula1) $
       parse (Parser.formula Parser.text) "input" formula1 @?=
         Right
-          (ForallN
+          (Forall
             42
             (PropForall
               "i"
@@ -242,4 +249,12 @@ parserTests = testGroup "Parsing"
                     (PropAtom "NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
                     (PropAtom "NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")]))))
                 (PropAtom "StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")])))))
+  ,
+    testCase (Text.unpack formula2) $
+      parse (Parser.formula Parser.text) "input" formula2 @?=
+        Right (ForallN 2 (Or Bottom (And (Next Top) (NextN 2 (NextN 1 (NextN 0 Top))))))
+  ,
+    testCase (Text.unpack formula3) $
+      parse (Parser.formula Parser.text) "input" formula3 @?=
+        Right (Forall 1 Top)
   ]

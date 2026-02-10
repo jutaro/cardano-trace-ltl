@@ -6,4 +6,4 @@ import           System.Environment
 main :: IO ()
 main = do
   [!input, !output] <- getArgs
-  verify input output
+  sanitize input output
