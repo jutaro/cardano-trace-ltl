@@ -118,11 +118,11 @@ logEmpty = []
 prop1 :: Formula Ty
 prop1 = PropForall "i" $ Forall 0 $
   Implies
-    (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
+    (Atom Start (fromList [PropConstraint "idx" (Var "i")]))
     (ExistsN 3 $
       Or
-        (PropAtom Success (fromList [PropConstraint "idx" (Var "i")]))
-        (PropAtom Failure (fromList [PropConstraint "idx" (Var "i")]))
+        (Atom Success (fromList [PropConstraint "idx" (Var "i")]))
+        (Atom Failure (fromList [PropConstraint "idx" (Var "i")]))
 
     )
 
@@ -133,10 +133,10 @@ prop2 = PropForall "i" $ UntilN
   100
   (Not $
     Or
-      (PropAtom Success (fromList [PropConstraint "idx" (Var "i")]))
-      (PropAtom Failure (fromList [PropConstraint "idx" (Var "i")]))
+      (Atom Success (fromList [PropConstraint "idx" (Var "i")]))
+      (Atom Failure (fromList [PropConstraint "idx" (Var "i")]))
   )
-  (PropAtom Start (fromList [PropConstraint "idx" (Var "i")]))
+  (Atom Start (fromList [PropConstraint "idx" (Var "i")]))
 
 main :: IO ()
 main = defaultMain tests
@@ -144,8 +144,8 @@ main = defaultMain tests
 tests :: TestTree
 tests = testGroup "Unit tests" [syntacticTests, prop1SatisfiabilityTests, prop2SatisfiabilityTests, parserTests]
 
-syn1 = PropForall "i" (PropAtom () (fromList [PropConstraint "idx" (Var "i")]))
-syn2 = PropForall "i" (PropAtom () (fromList [PropConstraint "idx" (Var "j")]))
+syn1 = PropForall "i" (Atom () (fromList [PropConstraint "idx" (Var "i")]))
+syn2 = PropForall "i" (Atom () (fromList [PropConstraint "idx" (Var "j")]))
 
 syntacticTests :: TestTree
 syntacticTests = testGroup "Syntanctic checks"
@@ -228,12 +228,12 @@ parserTests = testGroup "Parsing"
             (PropForall
               "x"
               (Implies
-                (PropAtom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "x")]))
+                (Atom "Forge.Loop.StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "x")]))
                 (ExistsN
                   3000
                   (Or
-                    (PropAtom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "x")]))
-                    (PropAtom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "x")])))))))
+                    (Atom "Forge.Loop.NodeIsLeader" (fromList [PropConstraint "slot" (Var "x")]))
+                    (Atom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "x")])))))))
   ,
     testCase (Text.unpack formula1) $
       parse (Parser.formula Parser.text) "input" formula1 @?=
@@ -246,9 +246,9 @@ parserTests = testGroup "Parsing"
                 123
                 (Not
                   (Or
-                    (PropAtom "NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
-                    (PropAtom "NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")]))))
-                (PropAtom "StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")])))))
+                    (Atom "NodeIsLeader" (fromList [PropConstraint "slot" (Var "i")]))
+                    (Atom "NodeNotLeader" (fromList [PropConstraint "slot" (Var "i")]))))
+                (Atom "StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")])))))
   ,
     testCase (Text.unpack formula2) $
       parse (Parser.formula Parser.text) "input" formula2 @?=

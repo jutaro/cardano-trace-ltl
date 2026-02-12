@@ -100,7 +100,7 @@ formulaInParens :: Parser ty -> Parser (Formula ty)
 formulaInParens ty = char '(' *> space *> formulaUniverse ty <* space <* char ')'
 
 formulaPropAtom :: Parser ty -> Parser (Formula ty)
-formulaPropAtom ty = PropAtom <$> ty <*> (space *> constraints)
+formulaPropAtom ty = Atom <$> ty <*> (space *> constraints)
 
 formulaAtom :: Parser ty -> Parser (Formula ty)
 formulaAtom ty = formulaBottom <|> formulaTop <|> formulaInParens ty <|> formulaPropAtom ty

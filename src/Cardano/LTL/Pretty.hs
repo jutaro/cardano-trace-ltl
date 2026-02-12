@@ -114,7 +114,7 @@ prettyFormula Top lvl = surround lvl Prec.Atom "⊤"
 prettyFormula Bottom lvl = surround lvl Prec.Atom "⊥"
 prettyFormula (PropForall x phi) lvl = surround lvl Prec.Universe $
   "∀" <> x <> ". " <> prettyFormula phi Prec.Universe
-prettyFormula (PropAtom c is) lvl = surround lvl Prec.Atom $
+prettyFormula (Atom c is) lvl = surround lvl Prec.Atom $
   Text.show c <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
 prettyFormula (PropEq _ t v) lvl = surround lvl Prec.Eq $
   prettyPropTerm t <> " = " <> prettyPropValue v
