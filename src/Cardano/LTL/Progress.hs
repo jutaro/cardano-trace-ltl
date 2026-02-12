@@ -34,7 +34,7 @@ next (Implies phi psi) s = Implies (next phi s) (next psi s)
 next (Not phi) s = Not (next phi s)
 next Bottom _ = Bottom
 next Top _ = Top
-next (PropAtom c is) s | ofTy s c =
+next (Atom c is) s | ofTy s c =
   F.and $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
     case lookup key (props s c) of
       Just v  -> PropEq (Set.singleton (index s, c)) t v
@@ -44,7 +44,7 @@ next (PropAtom c is) s | ofTy s c =
 #else
         Bottom
 #endif
-next (PropAtom {}) _ = Bottom
+next (Atom {}) _ = Bottom
 next (PropForall x phi) s = PropForall x (next phi s)
 next (PropEq rel a b) _ = PropEq rel a b
 
@@ -59,7 +59,7 @@ terminateNext (Not phi) = H.Not (terminateNext phi)
 terminateNext (PropForall x phi) = H.PropForall x (terminateNext phi)
 terminateNext (PropEq rel t v) = H.PropEq rel t v
 terminateNext (NextN _ phi) = terminateNext phi
-terminateNext (PropAtom ty cs) = terminate (PropAtom ty cs)
+terminateNext (Atom ty cs) = terminate (Atom ty cs)
 terminateNext Bottom = terminate Bottom
 terminateNext Top = terminate Top
 terminateNext (ExistsN k phi) = terminateNext (unfoldExistsN k phi)
@@ -73,7 +73,7 @@ terminate (ForallN k phi)    = terminate (unfoldForallN k phi)
 terminate (ExistsN k phi)    = terminate (unfoldExistsN k phi)
 terminate (UntilN k phi psi) = terminate (unfoldUntilN k phi psi)
 terminate (NextN k phi)      = terminate (unfoldNextN k phi)
-terminate (PropAtom _ _)     = H.Bottom
+terminate (Atom _ _)         = H.Bottom
 terminate (Next phi)         = terminateNext phi
 terminate (And phi psi)      = H.And (terminate phi) (terminate psi)
 terminate (Or phi psi)       = H.Or (terminate phi) (terminate psi)

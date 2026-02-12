@@ -46,4 +46,4 @@ checkFormula bound (Implies phi psi) = checkFormula bound phi ++ checkFormula bo
 checkFormula bound (UntilN _ phi psi) = checkFormula bound phi ++ checkFormula bound psi
 checkFormula bound (PropForall x phi) = checkFormula (insert x bound) phi
 checkFormula bound (PropEq _ t _) = checkParamTerm bound t
-checkFormula bound (PropAtom _ cs) = foldl' (++) [] (fmap (checkParamConstraint bound) (Set.toList cs))
+checkFormula bound (Atom _ cs) = foldl' (++) [] (fmap (checkParamConstraint bound) (Set.toList cs))

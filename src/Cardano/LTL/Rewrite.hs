@@ -18,7 +18,7 @@ import Data.Maybe (fromMaybe)
 -- | Call the given function on all sub-expressions of the formula recursively
 --   up to any temporal operator (= heterogeneous fragment), exclusively.
 recurseHomogeneous :: (Formula ty -> Maybe (Formula ty)) -> Formula ty -> Formula ty
-recurseHomogeneous _ self@(PropAtom {}) = self
+recurseHomogeneous _ self@(Atom {})     = self
 recurseHomogeneous _ self@(Forall {})   = self
 recurseHomogeneous _ self@(ExistsN {})  = self
 recurseHomogeneous _ self@(ForallN {})  = self
@@ -126,7 +126,7 @@ rewriteIdentity Top = Top
 rewriteIdentity (PropEq _ (Const v) v') | v == v' = Top
 rewriteIdentity (PropEq _ (Const _) _) = Bottom
 rewriteIdentity p@(PropEq {}) = p
-rewriteIdentity p@(PropAtom {}) = p
+rewriteIdentity p@(Atom {}) = p
 rewriteIdentity (PropForall x phi) =
   case rewriteIdentity phi of
     Top    -> Top

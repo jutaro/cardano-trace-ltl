@@ -96,6 +96,8 @@ data Formula ty =
      --   φ |¹⁺ᵏ ψ ≡ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ)
      --   φ until ψ in the n units of time from now
    | UntilN Word (Formula ty) (Formula ty)
+     -- | A ty c̄
+   | Atom ty (Set PropConstraint)
    -------------------------------------
 
 
@@ -116,8 +118,6 @@ data Formula ty =
 
 
    ----------- Event property ----------
-     -- | A ty c̄
-   | PropAtom ty (Set PropConstraint)
      -- | ∀x. φ
    | PropForall PropVarIdentifier (Formula ty)
      -- | i = v
@@ -141,7 +141,7 @@ relevance = go mempty where
   go acc (Implies phi psi)  = go (go acc phi) psi
   go acc Top                = acc
   go acc Bottom             = acc
-  go acc (PropAtom {})      = acc
+  go acc (Atom {})          = acc
   go acc (PropForall _ phi) = go acc phi
   go acc (PropEq rel _ _)   = rel `union` acc
 
@@ -193,54 +193,52 @@ interpTimeunit f (And phi psi) = And (interpTimeunit f phi) (interpTimeunit f ps
 interpTimeunit f (Implies phi psi) = Implies (interpTimeunit f phi) (interpTimeunit f psi)
 interpTimeunit _ Top = Top
 interpTimeunit _ Bottom = Bottom
-interpTimeunit _ phi@PropAtom{} = phi
+interpTimeunit _ phi@Atom{} = phi
 interpTimeunit _ phi@PropEq{} = phi
 interpTimeunit f (PropForall x phi) = PropForall x (interpTimeunit f phi)
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
--- (∅ ⊧ ◯ (φ ∨ ψ))  ⇔ (∅ ⊧ ◯ φ) ∨ (∅ ⊧ ◯ ψ)
--- (∅ ⊧ ◯ (φ ∧ ψ))  ⇔ (∅ ⊧ ◯ φ) ∧ (∅ ⊧ ◯ ψ)
--- (∅ ⊧ ◯ (φ ⇒ ψ))  ⇔ (∅ ⊧ ◯ φ) ⇒ (∅ ⊧ ◯ ψ)
--- (∅ ⊧ ◯ (¬ φ))    ⇔ ¬ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ ⊥)        ⇔ ⊥
--- (∅ ⊧ ◯ ⊤)        ⇔ ⊤
--- (∅ ⊧ ◯ (t = v))  ⇔ t = v
--- (∅ ⊧ ◯ (A ty c̄)) ⇔ ⊥
--- (∅ ⊧ ◯ (◯ φ)) ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (◯ᵏ φ)) ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (☐ ᪲ φ)) ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (♢⁰ φ)) ⇔ ⊥
--- (∅ ⊧ ◯ (♢¹⁺ᵏ φ)) ⇔ (∅ ⊧ ◯ (φ ∨ ◯ (♢ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (☐⁰ φ)) ⇔ ⊤
--- (∅ ⊧ ◯ (☐¹⁺ᵏ φ)) ⇔ (∅ ⊧ ◯ (φ ∧ ◯ (☐ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (φ |⁰ ψ)) = ⊤
--- (∅ ⊧ ◯ (φ |¹⁺ᵏ ψ)) = (∅ ⊧ ◯ (...))
--- (∅ ⊧ ☐ ᪲ₖ φ) ⇔ (∅ ⊧ φ ∧ ◯ (◯ᵏ (☐ ᪲ φ)))
--- (∅ ⊧ A ty c̄) ⇔ ⊥
+--  ∅ ⊧ φ
+-- (∅ ⊧ A ty c̄)        ⇔ ⊥
+-- (∅ ⊧ ◯ (φ ∨ ψ))     ⇔ (∅ ⊧ ◯ φ) ∨ (∅ ⊧ ◯ ψ)
+-- (∅ ⊧ ◯ (φ ∧ ψ))     ⇔ (∅ ⊧ ◯ φ) ∧ (∅ ⊧ ◯ ψ)
+-- (∅ ⊧ ◯ (φ ⇒ ψ))     ⇔ (∅ ⊧ ◯ φ) ⇒ (∅ ⊧ ◯ ψ)
+-- (∅ ⊧ ◯ (¬ φ))       ⇔ ¬ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ ⊥)           ⇔ ⊥
+-- (∅ ⊧ ◯ ⊤)           ⇔ ⊤
+-- (∅ ⊧ ◯ (t = v))     ⇔ t = v
+-- (∅ ⊧ ◯ (A ty c̄))    ⇔ ⊥
+-- (∅ ⊧ ◯ (◯ φ))       ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (◯ᵏ φ))      ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (☐ ᪲ φ))      ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (♢⁰ φ))      ⇔ ⊥
+-- (∅ ⊧ ◯ (♢¹⁺ᵏ φ))    ⇔ (∅ ⊧ ◯ (φ ∨ ◯ (♢ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (☐⁰ φ))      ⇔ ⊤
+-- (∅ ⊧ ◯ (☐¹⁺ᵏ φ))    ⇔ (∅ ⊧ ◯ (φ ∧ ◯ (☐ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
+-- (∅ ⊧ ◯ (φ |⁰ ψ))    ⇔ ⊤
+-- (∅ ⊧ ◯ (φ |¹⁺ᵏ ψ))  ⇔ (∅ ⊧ ◯ (...))
 --
--- (t̄ ⊧ ∀x. φ) ⇔ (∀x. (t̄ ⊧ φ))
--- (t̄ ⊧ ☐ ᪲ₖ φ) ⇔ (t̄ ⊧ φ ∧ ◯ (◯ᵏ (☐ ᪲ₖ)))
--- (t̄ ⊧ ☐⁰ φ) ⇔ ⊤
--- (t̄ ⊧ ☐¹⁺ᵏ φ) ⇔ (t̄ ⊧ φ ∧ ◯ (☐ᵏ φ))
--- (t̄ ⊧ ♢⁰ φ) ⇔ ⊥
--- (t̄ ⊧ ♢¹⁺ᵏ φ) ⇔ (t̄ ⊧ φ ∨ ◯ (♢ᵏ φ))
--- (_ t̄ ⊧ ◯ φ) ⇔ (t̄ ⊧ φ)
--- (t̄ ⊧ ◯⁰ φ) ⇔ (t̄ ⊧ φ)
--- (t̄ ⊧ ◯¹⁺ᵏ φ) ⇔ (t̄ ⊧ ◯ (◯ᵏ φ))
--- (t̄ ⊧ φ ∨ ψ) ⇔ ((t̄ ⊧ φ) ∨ (t̄ ⊧ ψ))
--- (t̄ ⊧ φ ∧ ψ) ⇔ ((t̄ ⊧ φ) ∧ (t̄ ⊧ ψ))
--- (t̄ ⊧ φ ⇒ ψ) ⇔ ((t̄ ⊧ φ) ⇒ (t̄ ⊧ ψ))
--- (t̄ ⊧ ¬ φ) ⇔ ¬ (t̄ ⊧ φ)
--- (t̄ ⊧ ⊥) ⇔ ⊥
--- (t̄ ⊧ ⊤) ⇔ ⊤
--- (t̄ ⊧ φ |⁰ ψ) ⇔ ⊥
--- (t̄ ⊧ φ |¹⁺ᵏ ψ) ⇔ (t̄ ⊧ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ))
--- (e _ ⊧ A(p, c̄)) ⇔ c̄ ⊆ props e   if ty e = p
---                   ⊥             otherwise
 --
--- ∅ ⊆ P ⇔ ⊤
--- {x = t} ⊔ c̄ ⊆ P ⇔ t = P(x) ∧ c̄ ⊆ P   if P(x) is defined
---                   ⊥                  otherwise
+--  t t̄ ⊧ φ
+-- (_ t̄ ⊧ ◯ φ)         ⇔ (t̄ ⊧ φ)
+-- (e _ ⊧ A(p, c̄))     ⇔ c̄ ⊆ props e   if ty e = p
+--                       ⊥             otherwise, where
+--
+--     ∅ ⊆ P ⇔ ⊤
+--     {x = t} ⊔ c̄ ⊆ P ⇔ t = P(x) ∧ c̄ ⊆ P   if P(x) is defined
+--                       ⊥                  otherwise
+--
+--  t̄ ⊧ φ // connective & event property fragments
+-- (t̄ ⊧ ∀x. φ)         ⇔ (∀x. (t̄ ⊧ φ))
+-- (t̄ ⊧ φ ∨ ψ)         ⇔ ((t̄ ⊧ φ) ∨ (t̄ ⊧ ψ))
+-- (t̄ ⊧ φ ∧ ψ)         ⇔ ((t̄ ⊧ φ) ∧ (t̄ ⊧ ψ))
+-- (t̄ ⊧ φ ⇒ ψ)         ⇔ ((t̄ ⊧ φ) ⇒ (t̄ ⊧ ψ))
+-- (t̄ ⊧ ¬ φ)           ⇔ ¬ (t̄ ⊧ φ)
+-- (t̄ ⊧ ⊥)             ⇔ ⊥
+-- (t̄ ⊧ ⊤)             ⇔ ⊤
+-- (e _ ⊧ A(p, c̄))     ⇔ c̄ ⊆ props e   if ty e = p
+--                       ⊥             otherwise
+--
 
 -- | A constraint signifying that `a` is an `Event` over base `ty`:
 --    — Given an element of `ty`, `ofTy` shall name whether the event is of the given type.

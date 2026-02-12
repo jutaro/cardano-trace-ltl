@@ -26,6 +26,7 @@ substFormula v x (ExistsN k phi) = ExistsN k (substFormula v x phi)
 substFormula v x (Next phi) = Next (substFormula v x phi)
 substFormula v x (NextN k phi) = NextN k (substFormula v x phi)
 substFormula v x (UntilN k phi psi) = UntilN k (substFormula v x phi) (substFormula v x psi)
+substFormula v x (Atom c is) = Atom c (Set.map (substPropConstraint v x) is)
 substFormula v x (And phi psi) = And (substFormula v x phi) (substFormula v x psi)
 substFormula v x (Or phi psi) = Or (substFormula v x phi) (substFormula v x psi)
 substFormula v x (Implies phi psi) = Implies (substFormula v x phi) (substFormula v x psi)
@@ -34,5 +35,4 @@ substFormula _ _ Bottom = Bottom
 substFormula _ _ Top = Top
 substFormula _ x (PropForall x' e) | x == x' = PropForall x' e
 substFormula v x (PropForall x' e) = PropForall x' (substFormula v x e)
-substFormula v x (PropAtom c is) = PropAtom c (Set.map (substPropConstraint v x) is)
 substFormula v x (PropEq rel t rhs) = PropEq rel (substPropTerm v x t) rhs

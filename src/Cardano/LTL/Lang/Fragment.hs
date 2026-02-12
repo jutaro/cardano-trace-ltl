@@ -13,7 +13,7 @@ import Control.Applicative ((<|>))
 
 -- | Try to retract `GuardedFormula` into `Fragment0` taking the atom to be the given (x = v).
 retract :: Eq ty => (PropVarIdentifier, PropValue) -> Formula ty -> Maybe (Fragment0 ty)
-retract _ (F.PropAtom {})   = Nothing
+retract _ (F.Atom {})       = Nothing
 retract _ (F.UntilN {})     = Nothing
 retract _ (F.Forall {})     = Nothing
 retract _ (F.ExistsN {})    = Nothing
@@ -59,7 +59,7 @@ toFormula _ F2.Top                 = F.Top
 
 -- | Find all `Fragment0` atoms in the form of (x = v) in the formula "now".
 findAtoms :: Formula ty -> Set (PropVarIdentifier, PropValue) -> Set (PropVarIdentifier, PropValue)
-findAtoms (F.PropAtom {}) set        = set
+findAtoms (F.Atom {}) set            = set
 findAtoms (F.UntilN {}) set          = set
 findAtoms (F.Forall {}) set          = set
 findAtoms (F.ExistsN {}) set         = set
