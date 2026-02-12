@@ -141,6 +141,7 @@ executable cardano-trace-ltl-verifier
       , aeson
       , streaming
       , async
+      , optparse-applicative
 
 
     -- Directories containing source files.
