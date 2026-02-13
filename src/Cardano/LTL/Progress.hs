@@ -46,6 +46,7 @@ next (Atom c is) s | ofTy s c =
 #endif
 next (Atom {}) _ = Bottom
 next (PropForall x phi) s = PropForall x (next phi s)
+next (PropForallN x dom phi) s = PropForallN x dom (next phi s)
 next (PropEq rel a b) _ = PropEq rel a b
 
 -- | This is an algorithm for (∅ ⊧ ◯ φ)
@@ -57,6 +58,7 @@ terminateNext (And phi psi) = terminateNext phi `H.And` terminateNext psi
 terminateNext (Implies phi psi) = terminateNext phi `H.Implies` terminateNext psi
 terminateNext (Not phi) = H.Not (terminateNext phi)
 terminateNext (PropForall x phi) = H.PropForall x (terminateNext phi)
+terminateNext (PropForallN x dom phi) = H.PropForallN x dom (terminateNext phi)
 terminateNext (PropEq rel t v) = H.PropEq rel t v
 terminateNext (NextN _ phi) = terminateNext phi
 terminateNext (Atom ty cs) = terminate (Atom ty cs)
@@ -68,18 +70,19 @@ terminateNext (UntilN k phi psi) = terminateNext (unfoldUntilN k phi psi)
 
 -- | This is an algorithm for (∅ ⊧ φ)
 terminate :: Formula a -> HomogeneousFormula a
-terminate (Forall k phi)     = terminate (unfoldForall k phi)
-terminate (ForallN k phi)    = terminate (unfoldForallN k phi)
-terminate (ExistsN k phi)    = terminate (unfoldExistsN k phi)
-terminate (UntilN k phi psi) = terminate (unfoldUntilN k phi psi)
-terminate (NextN k phi)      = terminate (unfoldNextN k phi)
-terminate (Atom _ _)         = H.Bottom
-terminate (Next phi)         = terminateNext phi
-terminate (And phi psi)      = H.And (terminate phi) (terminate psi)
-terminate (Or phi psi)       = H.Or (terminate phi) (terminate psi)
-terminate (Implies phi psi)  = H.Implies (terminate phi) (terminate psi)
-terminate (Not phi)          = H.Not (terminate phi)
-terminate Bottom             = H.Bottom
-terminate Top                = H.Top
-terminate (PropForall x phi) = H.PropForall x (terminate phi)
-terminate (PropEq rel a b)   = H.PropEq rel a b
+terminate (Forall k phi)          = terminate (unfoldForall k phi)
+terminate (ForallN k phi)         = terminate (unfoldForallN k phi)
+terminate (ExistsN k phi)         = terminate (unfoldExistsN k phi)
+terminate (UntilN k phi psi)      = terminate (unfoldUntilN k phi psi)
+terminate (NextN k phi)           = terminate (unfoldNextN k phi)
+terminate (Atom _ _)              = H.Bottom
+terminate (Next phi)              = terminateNext phi
+terminate (And phi psi)           = H.And (terminate phi) (terminate psi)
+terminate (Or phi psi)            = H.Or (terminate phi) (terminate psi)
+terminate (Implies phi psi)       = H.Implies (terminate phi) (terminate psi)
+terminate (Not phi)               = H.Not (terminate phi)
+terminate Bottom                  = H.Bottom
+terminate Top                     = H.Top
+terminate (PropForall x phi)      = H.PropForall x (terminate phi)
+terminate (PropForallN x dom phi) = H.PropForallN x dom (terminate phi)
+terminate (PropEq rel a b)        = H.PropEq rel a b

@@ -35,4 +35,6 @@ substFormula _ _ Bottom = Bottom
 substFormula _ _ Top = Top
 substFormula _ x (PropForall x' e) | x == x' = PropForall x' e
 substFormula v x (PropForall x' e) = PropForall x' (substFormula v x e)
+substFormula _ x (PropForallN x' dom e) | x == x' = PropForallN x' dom e
+substFormula v x (PropForallN x' dom e) = PropForallN x' dom (substFormula v x e)
 substFormula v x (PropEq rel t rhs) = PropEq rel (substPropTerm v x t) rhs

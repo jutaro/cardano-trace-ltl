@@ -24,7 +24,7 @@ surround _ _ str = "(" <> str <> ")"
 -- | Render a property value.
 prettyPropValue :: PropValue -> Text
 prettyPropValue (IntValue i)  = pack (show i)
-prettyPropValue (TextValue x) = x
+prettyPropValue (TextValue x) = Text.show x
 
 prettyPropKeyValueList :: [(PropName, PropValue)] -> Text
 prettyPropKeyValueList = intercalate "\n" . fmap go where
@@ -105,15 +105,19 @@ prettyFormula (UntilN k phi psi) lvl = surround lvl Prec.Universe $
 prettyFormula (Implies phi psi) lvl = surround lvl Prec.Implies $
   prettyFormula phi Prec.Or <> " " <> "⇒" <> " " <> prettyFormula psi Prec.Implies
 prettyFormula (Or phi psi) lvl = surround lvl Prec.Or $
-  prettyFormula phi Prec.Or <> " " <> "∨" <> " " <> prettyFormula psi Prec.And
+  prettyFormula phi Prec.Or <> " " <> "∨" <> " " <> prettyFormula psi Prec.Or
 prettyFormula (And phi psi) lvl = surround lvl Prec.And $
-  prettyFormula phi Prec.And <> " " <> "∧" <> " " <> prettyFormula psi Prec.Prefix
+  prettyFormula phi Prec.And <> " " <> "∧" <> " " <> prettyFormula psi Prec.And
 prettyFormula (Not phi) lvl = surround lvl Prec.Prefix $
   "¬ " <> prettyFormula phi Prec.Atom
 prettyFormula Top lvl = surround lvl Prec.Atom "⊤"
 prettyFormula Bottom lvl = surround lvl Prec.Atom "⊥"
 prettyFormula (PropForall x phi) lvl = surround lvl Prec.Universe $
   "∀" <> x <> ". " <> prettyFormula phi Prec.Universe
+prettyFormula (PropForallN x dom phi) lvl = surround lvl Prec.Universe $
+  "∀" <> "(" <> x <> " ∈ "
+      <> "{" <> intercalate ", " (fmap prettyPropValue (Set.toList dom)) <> "}"
+      <> ")" <> ". " <> prettyFormula phi Prec.Universe
 prettyFormula (Atom c is) lvl = surround lvl Prec.Atom $
   Text.show c <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
 prettyFormula (PropEq _ t v) lvl = surround lvl Prec.Eq $

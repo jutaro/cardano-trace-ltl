@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 module Main(main) where
 
@@ -14,6 +15,7 @@ import qualified Cardano.LTL.Lang.Formula.Parser    as Parser
 import           Cardano.LTL.Lang.Formula.Yaml
 import           Prelude                            hiding (read)
 
+import           Cardano.LTL.Lang.Formula.Parser    (Context (..))
 import qualified Cardano.LTL.Lang.Formula.Prec      as Prec
 import           Cardano.LTL.Pretty                 (prettyFormula)
 import           Cardano.Trace.Feed                 (Filename,
@@ -21,30 +23,40 @@ import           Cardano.Trace.Feed                 (Filename,
                                                      TemporalEventDurationMicrosec,
                                                      read, readS)
 import           Cardano.Trace.Ingest
-import           Control.Concurrent.Async           (async, wait)
+import           Control.Concurrent                 (threadDelay)
+import           Control.Concurrent.Async           (async, cancel,
+                                                     forConcurrently_,
+                                                     withAsync)
+import           Control.Concurrent.MVar
+import           Control.Monad                      (when)
 import           Data.Aeson
+import           Data.Aeson.Encode.Pretty
 import           Data.Aeson.Key                     (toText)
 import qualified Data.Aeson.KeyMap                  as KeyMap
-import           Data.Foldable                      (for_, traverse_)
-import           Data.IORef                         (newIORef)
+import           Data.Foldable                      (for_)
+import           Data.IORef                         (IORef, newIORef, readIORef)
 import           Data.List                          (find)
 import qualified Data.Map                           as Map
 import           Data.Map.Strict                    (Map)
 import           Data.Maybe                         (isJust, mapMaybe)
 import qualified Data.Set                           as Set
-import           Data.Text                          (Text, intercalate, pack,
-                                                     unpack)
+import           Data.Text                          (Text, intercalate, unpack)
 import qualified Data.Text                          as Text
-import           Data.Traversable                   (for)
+import qualified Data.Text.IO                       as Text
+import           Data.Text.Lazy                     (toStrict)
+import           Data.Text.Lazy.Builder             (toLazyText)
 import           GHC.Generics                       (Generic)
 import           Options.Applicative                hiding (Success)
 import           Streaming
 import           System.Exit                        (die)
+
+#define RETENTION_DEFAULT 200
+
+displayMetrics :: Bool
 #ifdef METRICS
-import           Control.Concurrent                 (forkIO, killThread,
-                                                     threadDelay)
-import           Data.IORef                         (IORef, readIORef)
-import qualified Data.Text.IO                       as Text
+displayMetrics = True
+#else
+displayMetrics = False
 #endif
 
 newtype TraceProps = TraceProps { slot :: Int } deriving (Show, Eq, Ord, Generic)
@@ -55,8 +67,10 @@ deriving instance Eq TraceMessage
 
 deriving instance Ord TraceMessage
 
+-- | Extract all accessible properties (fields) from the json object, non-recursively.
+--   Accessible fields are all fields of one of the following types: number, string.
 extractProps :: Object -> Map PropVarIdentifier PropValue
-extractProps = Map.fromList . mapMaybe parse . KeyMap.toList
+extractProps = Map.delete "kind" . Map.fromList . mapMaybe parse . KeyMap.toList
   where
     parse :: (Key, Value) -> Maybe (PropVarIdentifier, PropValue)
     parse (k, Number v) = Just (toText k, IntValue (truncate v))
@@ -68,12 +82,14 @@ instance Event TemporalEvent Text where
   index (TemporalEvent _ _ idx) = idx
   props (TemporalEvent _ msgs _) c =
     case find (\msg -> msg.tmsgNS == c) msgs of
-      Just x  -> extractProps x.tmsgData
+      Just x  -> Map.insert "host" (TextValue x.tmsgHost)       $
+                   Map.insert "thread" (TextValue x.tmsgThread) $
+                     extractProps x.tmsgData
       Nothing -> error ("Not an event of type " <> unpack c)
   beg (TemporalEvent t _ _) = t
 
 tabulate :: Int -> Text -> Text
-tabulate n = intercalate "\n" . fmap (pack . (replicate n ' ' <>)) . lines . unpack
+tabulate n = Text.unlines . fmap (Text.replicate n " " <>) . Text.lines
 
 green :: Text -> Text
 green text = "\x001b[32m" <> text <> "\x001b[0m"
@@ -82,10 +98,13 @@ red :: Text -> Text
 red text = "\x001b[31m" <> text <> "\x001b[0m"
 
 prettyTraceMessage :: TraceMessage -> Text
-prettyTraceMessage msg = tmsgNS msg <>
-    case fromJSON (Object (tmsgData msg)) of
-      Error _                   -> ""
-      Success (TraceProps slot) -> "(\"slot\" = " <> pack (show slot) <> ")"
+prettyTraceMessage TraceMessage{..} =
+  toStrict $ toLazyText $ encodePrettyToTextBuilder  $
+    Map.insert "at" (TextValue (Text.show tmsgAt))   $
+      Map.insert "namespace" (TextValue tmsgNS)      $
+        Map.insert "host" (TextValue tmsgHost)       $
+          Map.insert "thread" (TextValue tmsgThread) $
+            extractProps tmsgData
 
 
 prettyTemporalEvent :: TemporalEvent -> Text -> Text
@@ -101,52 +120,50 @@ prettySatisfactionResult events initial (Unsatisfied rel) =
       go []       = []
       go ((e, ty) : es) = prettyTemporalEvent (events !! fromIntegral e) ty : go es
 
-check :: Formula Text -> [TemporalEvent] -> IO ()
-check phi events =
-  putStrLn (unpack $ prettySatisfactionResult events phi (satisfies phi events))
+check :: MVar () -> Formula Text -> [TemporalEvent] -> IO ()
+check stdoutLock phi events =
+  let result = satisfies phi events
+      text = prettySatisfactionResult events phi result in
+  withMVar stdoutLock (const $ Text.putStrLn text)
 
-checkS' :: Formula Text -> Stream (Of TemporalEvent) IO () -> IO ()
-checkS' phi events = do
+checkS' :: MVar () -> Formula Text -> Stream (Of TemporalEvent) IO () -> IO ()
+checkS' stdoutLock phi events = do
   let initial = SatisfyMetrics 0 phi 0
   metrics <- newIORef initial
-#ifdef METRICS
-  counterDisplayThread <- forkIO (runDisplay initial metrics)
-#endif
-  (consumed, r) <- satisfiesS phi events metrics
-  putStrLn (unpack $ prettySatisfactionResult consumed phi r)
-#ifdef METRICS
-  killThread counterDisplayThread
-#endif
-#ifdef METRICS
+  withAsync (when displayMetrics $ runDisplay initial metrics) $ \counterDisplayThread -> do
+    (consumed, r) <- satisfiesS phi events metrics
+    let result = prettySatisfactionResult consumed phi r
+    withMVar stdoutLock $ const $ Text.putStrLn result
+    cancel counterDisplayThread
   where
     runDisplay :: SatisfyMetrics Text -> IORef (SatisfyMetrics Text) -> IO ()
     runDisplay prev counter = do
       next <- readIORef counter
-      putStrLn $ "event/s: " <> show (next.eventsConsumed - prev.eventsConsumed)
-      putStrLn $ "Catch-up ratio: "
-        <> show ((fromIntegral (next.currentTimestamp - prev.currentTimestamp) :: Double) / 1_000_000)
-        <> "  // values above 1.0 <=> realtime"
-      Text.putStrLn $ "Formula: " <> prettyFormula next.currentFormula Prec.Universe
+      withMVar stdoutLock $ const $ do
+        putStrLn $ "event/s: " <> show (next.eventsConsumed - prev.eventsConsumed)
+        putStrLn $ "Catch-up ratio: "
+          <> show ((fromIntegral (next.currentTimestamp - prev.currentTimestamp) :: Double) / 1_000_000)
+          <> "  // values above 1.0 <=> realtime"
+        Text.putStrLn $ "Formula: " <> prettyFormula next.currentFormula Prec.Universe
       threadDelay 1_000_000 -- 1s
       runDisplay next counter
-#endif
 
-checkOnline :: TemporalEventDurationMicrosec -> Int -> FailureMode -> IngestMode -> [Filename] -> [Formula Text] -> IO ()
-checkOnline eventDuration minRentionMs failureMode ingestMode files phis = do
-  ing <- mkIngestor minRentionMs
+-- TODO: "Restart" the formula once it is ⊥.
+checkOnline :: TemporalEventDurationMicrosec -> Word -> FailureMode -> IngestMode -> [Filename] -> [Formula Text] -> IO ()
+checkOnline eventDuration retentionMs failureMode ingestMode files phis = do
+  ing <- mkIngestor (fromIntegral retentionMs)
   for_ files (ingestFileThreaded ing failureMode ingestMode)
-  threads <- for phis $ \phi -> async $ do
+  stdoutLock <- newMVar ()
+  forConcurrently_ phis $ \phi -> async $ do
     reader <- mkIngestorReader ing
-    checkS' phi (readS reader eventDuration)
-  traverse_ wait threads
+    checkS' stdoutLock phi (readS reader eventDuration)
 
 checkOffline :: TemporalEventDurationMicrosec -> Filename -> [Formula Text] -> IO ()
 checkOffline eventDuration file phis = do
   events <- read file eventDuration
-  threads <- for phis $ \phi -> async $
-    check phi events
-  traverse_ wait threads
-
+  stdoutLock <- newMVar ()
+  forConcurrently_ phis $ \phi -> async $
+    check stdoutLock phi events
 
 data Mode = Online | Offline deriving (Show, Eq)
 
@@ -168,14 +185,23 @@ parseFormulasFile = argument str (metavar "FILE")
 parseTraceFiles :: Parser [Filename]
 parseTraceFiles = some (argument str (metavar "FILES"))
 
+parseRetention :: Parser Word
+parseRetention = option auto $
+     long "retention"
+  <> metavar "INT"
+  <> showDefault
+  <> value RETENTION_DEFAULT
+  <> help "temporal event retention period before it gets consumed"
+
 data CliOptions = CliOptions
   { formulas      :: Filename
   , mode          :: Mode
   , eventDuration :: Word
-  , traces        :: [Filename]}
+  , traces        :: [Filename]
+  , retention     :: Word}
 
 parseCliOptions :: Parser CliOptions
-parseCliOptions = CliOptions <$> parseFormulasFile <*> parseMode <*> parseEventDuration <*> parseTraceFiles
+parseCliOptions = CliOptions <$> parseFormulasFile <*> parseMode <*> parseEventDuration <*> parseTraceFiles <*> parseRetention
 
 opts :: ParserInfo CliOptions
 opts = info (parseCliOptions <**> helper)
@@ -191,7 +217,9 @@ unitToMicrosecond = (1_000_000 *)
 main :: IO ()
 main = do
   options <- execParser opts
-  formulas <- readYaml options.formulas Parser.text >>= dieOnYamlException
+  ctx <- Map.toList <$> (readPropValues "sample/context.yaml" >>= dieOnYamlException)
+  print ctx
+  formulas <- readFormulas options.formulas (Context ctx) Parser.text >>= dieOnYamlException
   let formulas' = fmap (interpTimeunit (\u -> unitToMicrosecond u `div` fromIntegral options.eventDuration)) formulas
   case options.mode of
     Offline -> do
@@ -200,8 +228,8 @@ main = do
         _   -> die "Only exactly one trace file is supported in 'offline' mode"
       checkOffline options.eventDuration file formulas'
     Online -> do
-      checkOnline options.eventDuration 200 RethrowExceptions FromFileStart options.traces formulas'
+      checkOnline options.eventDuration options.retention RethrowExceptions FromFileStart options.traces formulas'
   where
-    dieOnYamlException :: Either Exception [Formula Text] -> IO [Formula Text]
+    dieOnYamlException :: forall a. Either Exception a -> IO a
     dieOnYamlException (Left exc) = die (Text.unpack exc)
     dieOnYamlException (Right ok) = pure ok

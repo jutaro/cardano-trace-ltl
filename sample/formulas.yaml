@@ -3,5 +3,8 @@
 - ☐ ᪲₁ (∀i. (¬ ("Forge.Loop.NodeIsLeader"("slot" = i) ∨ "Forge.Loop.NodeNotLeader"("slot" = i)) |¹ "Forge.Loop.StartLeadershipCheck"("slot" = i)))
 - ☐ ᪲ (∀i. "Forge.Loop.ForgedBlock"("slot" = i) ⇒ ♢³ "Forge.Loop.AdoptedBlock"("slot" = i))
 
+# Just an example formula that has variables in it interpreted in a context.
+- ∀n ∈ $NODES. n = "node-1" ∨ n = "node-2" ∨ n = "node-3"
+
 # Once we have cross-node trace messages
 # - ☐ ᪲ (∀b. "Forge.Loop.ForgedBlock"("block" = b) ⇒ (∀n. ♢³ ("Forge.Loop.AdoptedBlock"("blockHash" = b, "node-id" = n))))

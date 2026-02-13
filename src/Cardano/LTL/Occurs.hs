@@ -33,5 +33,7 @@ occursFormula _ Bottom = False
 occursFormula _ Top = False
 occursFormula x (PropForall x' _) | x == x' = False
 occursFormula x (PropForall _ phi) = occursFormula x phi
+occursFormula x (PropForallN x' _ _) | x == x' = False
+occursFormula x (PropForallN _ _ phi) = occursFormula x phi
 occursFormula x (Atom _ is) = foldl' (\acc phi -> acc || occursPropConstraint x phi) False is
 occursFormula x (PropEq _ t _) = occursPropTerm x t

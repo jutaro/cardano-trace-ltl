@@ -13,23 +13,24 @@ import Control.Applicative ((<|>))
 
 -- | Try to retract `GuardedFormula` into `Fragment0` taking the atom to be the given (x = v).
 retract :: Eq ty => (PropVarIdentifier, PropValue) -> Formula ty -> Maybe (Fragment0 ty)
-retract _ (F.Atom {})       = Nothing
-retract _ (F.UntilN {})     = Nothing
-retract _ (F.Forall {})     = Nothing
-retract _ (F.ExistsN {})    = Nothing
-retract _ (F.ForallN {})    = Nothing
-retract _ (F.NextN {})      = Nothing
-retract _ (F.Next {})       = Nothing
-retract abs (F.And a b)     = F0.And <$> retract abs a <*> retract abs b
-retract abs (F.Or a b)      = F0.Or <$> retract abs a <*> retract abs b
-retract abs (F.Implies a b) = F0.Implies <$> retract abs a <*> retract abs b
-retract abs (F.Not a)       = F0.Not <$> retract abs a
-retract _ F.Top             = Just F0.Top
-retract _ F.Bottom          = Just F0.Bottom
-retract _ (F.PropForall {}) = Nothing
+retract _ (F.Atom {})        = Nothing
+retract _ (F.UntilN {})      = Nothing
+retract _ (F.Forall {})      = Nothing
+retract _ (F.ExistsN {})     = Nothing
+retract _ (F.ForallN {})     = Nothing
+retract _ (F.NextN {})       = Nothing
+retract _ (F.Next {})        = Nothing
+retract abs (F.And a b)      = F0.And <$> retract abs a <*> retract abs b
+retract abs (F.Or a b)       = F0.Or <$> retract abs a <*> retract abs b
+retract abs (F.Implies a b)  = F0.Implies <$> retract abs a <*> retract abs b
+retract abs (F.Not a)        = F0.Not <$> retract abs a
+retract _ F.Top              = Just F0.Top
+retract _ F.Bottom           = Just F0.Bottom
+retract _ (F.PropForall {})  = Nothing
+retract _ (F.PropForallN {}) = Nothing
 retract (!x, !v) (F.PropEq rel (Var x') v') | x == x' && v == v'
-                            = Just (F0.Atom rel)
-retract _ (F.PropEq {})     = Nothing
+                             = Just (F0.Atom rel)
+retract _ (F.PropEq {})      = Nothing
 
 -- | Evaluate `Fragment0` to `Fragment1`
 toFragment1 :: Fragment0 ty -> Fragment1 ty
@@ -59,22 +60,23 @@ toFormula _ F2.Top                 = F.Top
 
 -- | Find all `Fragment0` atoms in the form of (x = v) in the formula "now".
 findAtoms :: Formula ty -> Set (PropVarIdentifier, PropValue) -> Set (PropVarIdentifier, PropValue)
-findAtoms (F.Atom {}) set            = set
-findAtoms (F.UntilN {}) set          = set
-findAtoms (F.Forall {}) set          = set
-findAtoms (F.ExistsN {}) set         = set
-findAtoms (F.ForallN {}) set         = set
-findAtoms (F.NextN {}) set           = set
-findAtoms (F.Next _) set             = set
-findAtoms (F.And phi psi) set        = findAtoms phi (findAtoms psi set)
-findAtoms (F.Or phi psi) set         = findAtoms phi (findAtoms psi set)
-findAtoms (F.Implies phi psi) set    = findAtoms phi (findAtoms psi set)
-findAtoms (F.Not phi) set            = findAtoms phi set
-findAtoms F.Bottom set               = set
-findAtoms F.Top set                  = set
-findAtoms (F.PropEq _ (Var x) v) set = Set.insert (x, v) set
-findAtoms (F.PropEq {}) set          = set
-findAtoms (F.PropForall _ phi) set   = findAtoms phi set
+findAtoms (F.Atom {}) set             = set
+findAtoms (F.UntilN {}) set           = set
+findAtoms (F.Forall {}) set           = set
+findAtoms (F.ExistsN {}) set          = set
+findAtoms (F.ForallN {}) set          = set
+findAtoms (F.NextN {}) set            = set
+findAtoms (F.Next _) set              = set
+findAtoms (F.And phi psi) set         = findAtoms phi (findAtoms psi set)
+findAtoms (F.Or phi psi) set          = findAtoms phi (findAtoms psi set)
+findAtoms (F.Implies phi psi) set     = findAtoms phi (findAtoms psi set)
+findAtoms (F.Not phi) set             = findAtoms phi set
+findAtoms F.Bottom set                = set
+findAtoms F.Top set                   = set
+findAtoms (F.PropEq _ (Var x) v) set  = Set.insert (x, v) set
+findAtoms (F.PropEq {}) set           = set
+findAtoms (F.PropForall _ phi) set    = findAtoms phi set
+findAtoms (F.PropForallN _ _ phi) set = findAtoms phi set
 
 -- | Given a set of propositional equalities {xᵢ = vᵢ}ᵢ and a formula, if the formula can be retracted into
 --   `Fragment0` where the atom is taken to be one of the equalities (xᵢ = vᵢ), computes normal form in `Fragment0` and
