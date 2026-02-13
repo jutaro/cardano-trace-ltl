@@ -17,6 +17,7 @@ import qualified Data.Text                       as Text
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Text.Megaparsec
+import Cardano.LTL.Lang.Formula.Parser (Context(..))
 
 type Identifier = EventIndex
 
@@ -217,11 +218,20 @@ formula2 =
 formula3 :: Text
 formula3 = "☐ ᪲₁ ⊤"
 
+formula4 :: Text
+formula4 = "∀(x ∈ {1, 2, 3}). x = 1 ∨ x = 2 ∨ x = 3"
+
+formula5 :: Text
+formula5 = "∀x ∈ {1, 2, 3}. x = 1 ∨ x = 2 ∨ x = 3"
+
+emptyCtx :: Context
+emptyCtx = Context []
+
 parserTests :: TestTree
 parserTests = testGroup "Parsing"
   [
     testCase (Text.unpack formula0) $
-      parse (Parser.formula Parser.text) "input" formula0 @?=
+      parse (Parser.formula emptyCtx Parser.text) "input" formula0 @?=
         Right
           (Forall
             0
@@ -236,7 +246,7 @@ parserTests = testGroup "Parsing"
                     (Atom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "x")])))))))
   ,
     testCase (Text.unpack formula1) $
-      parse (Parser.formula Parser.text) "input" formula1 @?=
+      parse (Parser.formula emptyCtx Parser.text) "input" formula1 @?=
         Right
           (Forall
             42
@@ -251,10 +261,34 @@ parserTests = testGroup "Parsing"
                 (Atom "StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")])))))
   ,
     testCase (Text.unpack formula2) $
-      parse (Parser.formula Parser.text) "input" formula2 @?=
+      parse (Parser.formula emptyCtx Parser.text) "input" formula2 @?=
         Right (ForallN 2 (Or Bottom (And (Next Top) (NextN 2 (NextN 1 (NextN 0 Top))))))
   ,
     testCase (Text.unpack formula3) $
-      parse (Parser.formula Parser.text) "input" formula3 @?=
+      parse (Parser.formula emptyCtx Parser.text) "input" formula3 @?=
         Right (Forall 1 Top)
+  ,
+    testCase (Text.unpack formula4) $
+      parse (Parser.formula emptyCtx Parser.text) "input" formula4 @?=
+        Right
+          (PropForallN
+            "x"
+            (fromList [IntValue 1,IntValue 2,IntValue 3])
+            (Or
+              (PropEq (fromList []) (Var "x") (IntValue 1))
+              (Or
+                (PropEq (fromList []) (Var "x") (IntValue 2))
+                (PropEq (fromList []) (Var "x") (IntValue 3)))))
+  ,
+    testCase (Text.unpack formula5) $
+      parse (Parser.formula emptyCtx Parser.text) "input" formula5 @?=
+        Right
+          (PropForallN
+            "x"
+            (fromList [IntValue 1,IntValue 2,IntValue 3])
+            (Or
+              (PropEq (fromList []) (Var "x") (IntValue 1))
+              (Or
+                (PropEq (fromList []) (Var "x") (IntValue 2))
+                (PropEq (fromList []) (Var "x") (IntValue 3)))))
   ]

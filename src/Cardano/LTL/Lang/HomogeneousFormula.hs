@@ -35,18 +35,20 @@ data HomogeneousFormula ty =
 
    ----------- Event property ----------
    | PropForall PropVarIdentifier (HomogeneousFormula ty)
+   | PropForallN PropVarIdentifier (Set PropValue) (HomogeneousFormula ty)
    | PropEq (Relevance ty) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 toFormula :: HomogeneousFormula ty -> Formula ty
-toFormula (And a b)          = F.And (toFormula a) (toFormula b)
-toFormula (Or a b)           = F.Or (toFormula a) (toFormula b)
-toFormula (Implies a b)      = F.Implies (toFormula a) (toFormula b)
-toFormula (Not a)            = F.Not (toFormula a)
-toFormula Bottom             = F.Bottom
-toFormula Top                = F.Top
-toFormula (PropEq e a b)     = F.PropEq e a b
-toFormula (PropForall x phi) = F.PropForall x (toFormula phi)
+toFormula (And a b)               = F.And (toFormula a) (toFormula b)
+toFormula (Or a b)                = F.Or (toFormula a) (toFormula b)
+toFormula (Implies a b)           = F.Implies (toFormula a) (toFormula b)
+toFormula (Not a)                 = F.Not (toFormula a)
+toFormula Bottom                  = F.Bottom
+toFormula Top                     = F.Top
+toFormula (PropEq e a b)          = F.PropEq e a b
+toFormula (PropForall x phi)      = F.PropForall x (toFormula phi)
+toFormula (PropForallN x dom phi) = F.PropForallN x dom (toFormula phi)
 
 valuesAccum :: Set PropValue -> PropVarIdentifier -> HomogeneousFormula ty -> Set PropValue
 valuesAccum acc x (Or phi psi) = valuesAccum (valuesAccum acc x phi) x psi
@@ -59,7 +61,9 @@ valuesAccum acc _ (PropEq _ (F.Const _) _) = acc
 valuesAccum acc x (PropEq _ (F.Var x') v) | x == x' = Set.insert v acc
 valuesAccum acc _ (PropEq _ (F.Var _) _) = acc
 valuesAccum acc x (PropForall x' phi) | x /= x' = valuesAccum acc x phi
-valuesAccum acc _ (PropForall _ _i) = acc
+valuesAccum acc _ (PropForall _ _) = acc
+valuesAccum acc x (PropForallN x' _ phi) | x /= x' = valuesAccum acc x phi
+valuesAccum acc _ (PropForallN {}) = acc
 
 -- | Set of values the given prop var can take in the formula.
 values :: PropVarIdentifier -> HomogeneousFormula ty -> Set PropValue
@@ -81,6 +85,8 @@ substHomogeneousFormula (Val v) x (PropEq rel (F.Var x') rhs) | x == x' = PropEq
 substHomogeneousFormula _ _ (PropEq rel (F.Var x') rhs) = PropEq rel (F.Var x') rhs
 substHomogeneousFormula v x (PropForall x' phi) | x /= x' = PropForall x' (substHomogeneousFormula v x phi)
 substHomogeneousFormula _ _ (PropForall x' phi) = PropForall x' phi
+substHomogeneousFormula v x (PropForallN x' dom phi) | x /= x' = PropForallN x' dom (substHomogeneousFormula v x phi)
+substHomogeneousFormula _ _ (PropForallN x' dom phi) = PropForallN x' dom phi
 
 -- | Evaluate the `HomogeneousFormula` onto `Bool`.
 --   This is the "interesting" part of the iso: `HomogeneousFormula` ≅ `Bool`
@@ -99,6 +105,12 @@ eval (PropForall x phi) = eval (substHomogeneousFormula Placeholder x phi) &&
     Set.toList (values x phi) <&> \v ->
       eval (substHomogeneousFormula (Val v) x phi)
   )
+-- ⟦∀(x ∈ v₁...vₖ). φ⟧ <=> φ[v₁ / x] ∧ ... ∧ φ[vₖ / x]
+eval (PropForallN x dom phi) =
+  foldl' (&&) True (
+    Set.toList dom <&> \v ->
+      eval (substHomogeneousFormula (Val v) x phi)
+  )
 
 -- | This is the "easy" part of the iso: `HomogeneousFormula` ≅ `Bool`
 quote :: Bool -> HomogeneousFormula ty
@@ -112,24 +124,25 @@ equiv = on (==) eval
 retract :: Formula ty -> Maybe (HomogeneousFormula ty)
 retract = go Set.empty where
   go :: Set PropVarIdentifier -> Formula ty -> Maybe (HomogeneousFormula ty)
-  go _     (F.ForallN {})              = Nothing
-  go _     (F.ExistsN {})              = Nothing
-  go _     (F.Forall {})               = Nothing
-  go _     (F.NextN {})                = Nothing
-  go _     (F.UntilN {})               = Nothing
-  go _     (F.Atom {})                 = Nothing
-  go _     (F.Next _)                  = Nothing
-  go bound (F.And phi psi)             = And <$> go bound phi <*> go bound psi
-  go bound (F.Or phi psi)              = Or <$> go bound phi <*> go bound psi
-  go bound (F.Implies phi psi)         = Implies <$> go bound phi <*> go bound psi
-  go bound (F.Not phi)                 = Not <$> go bound phi
-  go _     F.Bottom                    = Just Bottom
-  go _     F.Top                       = Just Top
-  go _     (F.PropEq rel (Const v') v) = Just (PropEq rel (Const v') v)
+  go _     (F.ForallN {})                = Nothing
+  go _     (F.ExistsN {})                = Nothing
+  go _     (F.Forall {})                 = Nothing
+  go _     (F.NextN {})                  = Nothing
+  go _     (F.UntilN {})                 = Nothing
+  go _     (F.Atom {})                   = Nothing
+  go _     (F.Next _)                    = Nothing
+  go bound (F.And phi psi)               = And <$> go bound phi <*> go bound psi
+  go bound (F.Or phi psi)                = Or <$> go bound phi <*> go bound psi
+  go bound (F.Implies phi psi)           = Implies <$> go bound phi <*> go bound psi
+  go bound (F.Not phi)                   = Not <$> go bound phi
+  go _     F.Bottom                      = Just Bottom
+  go _     F.Top                         = Just Top
+  go _     (F.PropEq rel (Const v') v)   = Just (PropEq rel (Const v') v)
   go bound (F.PropEq rel (Var x) v)
-                | Set.member x bound   = Just (PropEq rel (Var x) v)
-  go _     (F.PropEq _ (Var _) _)      = Nothing
-  go bound (F.PropForall x phi)        = PropForall x <$> go (Set.insert x bound) phi
+                | Set.member x bound     = Just (PropEq rel (Var x) v)
+  go _     (F.PropEq _ (Var _) _)        = Nothing
+  go bound (F.PropForall x phi)          = PropForall x <$> go (Set.insert x bound) phi
+  go bound (F.PropForallN x dom phi)     = PropForallN x dom <$> go (Set.insert x bound) phi
 
 normaliseHomogeneous :: Formula ty -> Maybe (Formula ty)
 normaliseHomogeneous phi =

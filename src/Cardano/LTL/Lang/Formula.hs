@@ -19,6 +19,7 @@ module Cardano.LTL.Lang.Formula (
   , interpTimeunit
   , Event(..)) where
 
+import           Data.Aeson
 import           Data.Map.Strict (Map)
 import           Data.Set        (Set, union)
 import           Data.Text       (Text)
@@ -39,6 +40,10 @@ type PropVarIdentifier = Text
 -- | An event property that can be either `Int` or `Text`.
 data PropValue = IntValue Int | TextValue Text deriving (Show, Ord, Eq)
 
+instance ToJSON PropValue where
+  toJSON (IntValue n)     = Number (fromIntegral n)
+  toJSON (TextValue text) = String text
+
 -- | Default name: t.
 -- | A term representing a constant property or a variable property.
 data PropTerm = Const PropValue | Var PropVarIdentifier deriving (Show, Eq, Ord)
@@ -50,6 +55,7 @@ data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 type Relevance ty = Set (EventIndex, ty)
 
 -- v ::= <int> | "<string>"
+-- v̄ ::= {v, ..., v}
 -- t ::= <int> | "<string>" | x
 -- c ::= "<string>" = t
 -- ty ::= <finite type>
@@ -60,7 +66,7 @@ type Relevance ty = Set (EventIndex, ty)
 -- φ{and} ::= φ{≥and} ∧ φ{>and}
 -- φ{or} ::= φ{≥or} ∨ φ{>or}
 -- φ{implies} ::= φ{>implies} ⇒ φ{≥implies}
--- φ{universe} ::= ∀x. φ{≥universe} | φ{≥implies} \|ᵏ φ{≥implies}
+-- φ{universe} ::= ∀(x ∈ v̄). φ{≥universe} | ∀x. φ{≥universe} | φ{≥implies} \|ᵏ φ{≥implies}
 
 -- | Default name: φ.
 -- | A type of Linear Temporal Logic formulas over a base type ty.
@@ -119,7 +125,11 @@ data Formula ty =
 
    ----------- Event property ----------
      -- | ∀x. φ
+     --   `x` implicitly ranges over the set of all integers and finite strings
    | PropForall PropVarIdentifier (Formula ty)
+     -- | ∀(x ∈ v̄). φ
+     --   `x` ranges over values in `v̄`
+   | PropForallN PropVarIdentifier (Set PropValue) (Formula ty)
      -- | i = v
    | PropEq (Relevance ty) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
@@ -129,21 +139,22 @@ data Formula ty =
 relevance :: Ord ty => Formula ty -> Relevance ty
 relevance = go mempty where
   go :: Ord ty => Relevance ty -> Formula ty -> Relevance ty
-  go acc (Forall _ phi)     = go acc phi
-  go acc (ForallN _ phi)    = go acc phi
-  go acc (ExistsN _ phi)    = go acc phi
-  go acc (Next phi)         = go acc phi
-  go acc (NextN _ phi)      = go acc phi
-  go acc (UntilN _ phi psi) = go (go acc phi) psi
-  go acc (Or phi psi)       = go (go acc phi) psi
-  go acc (And phi psi)      = go (go acc phi) psi
-  go acc (Not phi)          = go acc phi
-  go acc (Implies phi psi)  = go (go acc phi) psi
-  go acc Top                = acc
-  go acc Bottom             = acc
-  go acc (Atom {})          = acc
-  go acc (PropForall _ phi) = go acc phi
-  go acc (PropEq rel _ _)   = rel `union` acc
+  go acc (Forall _ phi)        = go acc phi
+  go acc (ForallN _ phi)       = go acc phi
+  go acc (ExistsN _ phi)       = go acc phi
+  go acc (Next phi)            = go acc phi
+  go acc (NextN _ phi)         = go acc phi
+  go acc (UntilN _ phi psi)    = go (go acc phi) psi
+  go acc (Or phi psi)          = go (go acc phi) psi
+  go acc (And phi psi)         = go (go acc phi) psi
+  go acc (Not phi)             = go acc phi
+  go acc (Implies phi psi)     = go (go acc phi) psi
+  go acc Top                   = acc
+  go acc Bottom                = acc
+  go acc (Atom {})             = acc
+  go acc (PropForall _ phi)    = go acc phi
+  go acc (PropForallN _ _ phi) = go acc phi
+  go acc (PropEq rel _ _)      = rel `union` acc
 
 unfoldForall :: Word -> Formula ty -> Formula ty
 unfoldForall k phi = And phi (Next (NextN k (Forall k phi)))
@@ -196,6 +207,7 @@ interpTimeunit _ Bottom = Bottom
 interpTimeunit _ phi@Atom{} = phi
 interpTimeunit _ phi@PropEq{} = phi
 interpTimeunit f (PropForall x phi) = PropForall x (interpTimeunit f phi)
+interpTimeunit f (PropForallN x dom phi) = PropForallN x dom (interpTimeunit f phi)
 
 -- Satisfiability rules of formulas (assuming a background first-order logic):
 --  ∅ ⊧ φ
@@ -230,6 +242,7 @@ interpTimeunit f (PropForall x phi) = PropForall x (interpTimeunit f phi)
 --
 --  t̄ ⊧ φ // connective & event property fragments
 -- (t̄ ⊧ ∀x. φ)         ⇔ (∀x. (t̄ ⊧ φ))
+-- (t̄ ⊧ ∀(x ∈ v̄). φ)   ⇔ (∀(x ∈ v̄). (t̄ ⊧ φ))
 -- (t̄ ⊧ φ ∨ ψ)         ⇔ ((t̄ ⊧ φ) ∨ (t̄ ⊧ ψ))
 -- (t̄ ⊧ φ ∧ ψ)         ⇔ ((t̄ ⊧ φ) ∧ (t̄ ⊧ ψ))
 -- (t̄ ⊧ φ ⇒ ψ)         ⇔ ((t̄ ⊧ φ) ⇒ (t̄ ⊧ ψ))

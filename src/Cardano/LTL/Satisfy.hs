@@ -85,7 +85,8 @@ satisfiesS :: (Event event ty, Ord ty, Show ty)
            => Formula ty
            -> Stream (Of event) IO ()
            -> IORef (SatisfyMetrics ty)
-           -> IO ([event], SatisfactionResult ty)
+           -> IO ({- FIXME: The list of consumed events is a memory leak -}[event],
+                    SatisfactionResult ty)
 satisfiesS formula input metrics = fmap (first reverse) <$> run $ mapped (pure. pure . runIdentity) $ unfold (go metrics) (0, formula, [], input) where
   go :: (Ord ty, Event event ty, Show ty)
      => IORef (SatisfyMetrics ty)
