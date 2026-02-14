@@ -3,18 +3,18 @@ import           Cardano.LTL.Lang.Formula (Relevance)
 
 -- | t ::= ☐ | ¬ t | t ∧ t | t ∨ t | t ⇒ t | ⊤ | ⊥
 --   NOTE: "☐" here stands for "atom".
-data Fragment0 ty = Atom (Relevance ty)
-                  | Not (Fragment0 ty)
-                  | And (Fragment0 ty) (Fragment0 ty)
-                  | Or (Fragment0 ty) (Fragment0 ty)
-                  | Implies (Fragment0 ty) (Fragment0 ty)
-                  | Top
-                  | Bottom
+data Fragment0 event ty = Atom (Relevance event ty)
+                        | Not (Fragment0 event ty)
+                        | And (Fragment0 event ty) (Fragment0 event ty)
+                        | Or (Fragment0 event ty) (Fragment0 event ty)
+                        | Implies (Fragment0 event ty) (Fragment0 event ty)
+                        | Top
+                        | Bottom
 
 -- t₁ ∧ t₂ ∧ ... ∧ tₙ
-andList :: [Fragment0 ty] -> Fragment0 ty
+andList :: [Fragment0 event ty] -> Fragment0 event ty
 andList = foldl' And Top
 
 -- t₁ ∨ t₂ ∨ ... ∨ tₙ
-orList :: [Fragment0 ty] -> Fragment0 ty
+orList :: [Fragment0 event ty] -> Fragment0 event ty
 orList = foldl' Or Bottom

@@ -2,7 +2,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module Cardano.LTL.Lang.Formula (
     PropName
-  , EventIndex
   , PropVarIdentifier
   , PropValue(..)
   , PropTerm(..)
@@ -29,9 +28,6 @@ import           Prelude         hiding (and)
 -- | A property name (e.g. "thread", "node", etc.).
 type PropName = Text
 
--- | An event index.
-type EventIndex = Word
-
 -- | Default name: x.
 -- | Identifier denoting an event property variable.
 type PropVarIdentifier = Text
@@ -51,8 +47,8 @@ data PropTerm = Const PropValue | Var PropVarIdentifier deriving (Show, Eq, Ord)
 -- | Default name: c.
 data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 
--- | Set of indices into relevant events together with type of the relevant event.
-type Relevance ty = Set (EventIndex, ty)
+-- | Set of relevant events.
+type Relevance event ty = Set (event, ty)
 
 -- v ::= <int> | "<string>"
 -- v̄ ::= {v, ..., v}
@@ -70,7 +66,7 @@ type Relevance ty = Set (EventIndex, ty)
 
 -- | Default name: φ.
 -- | A type of Linear Temporal Logic formulas over a base type ty.
-data Formula ty =
+data Formula event ty =
    ------------ Temporal -------------
      -- | ☐ ᪲ₖ φ ≡ φ ∧ ◯ (◯ᵏ (☐ ᪲ₖ))
      --   For every (k+1)-th unit of time from now, φ
@@ -78,30 +74,30 @@ data Formula ty =
      --     ☐ ᪲₁ φ means for every other unit of time from now, φ
      --     ☐ ᪲₃ φ means for every 4-th unit of time from now, φ
      --     ☐ ᪲₀ φ means for every unit of time from now, φ
-     Forall Word (Formula ty)
+     Forall Word (Formula event ty)
      -- | ☐ⁿ φ
      --   ☐⁰ φ ≡ ⊤
      --   ☐¹⁺ᵏ φ ≡ φ ∧ ◯ (☐ᵏ φ)
      --   For each of the n units of time from now, φ
-   | ForallN Word (Formula ty)
+   | ForallN Word (Formula event ty)
      -- | ♢ⁿ φ
      --   ♢⁰ φ ≡ ⊥
      --   ♢¹⁺ᵏ φ ≡ φ ∨ ◯ (♢ᵏ φ)
      --   For one of the n units of time from now, φ
-   | ExistsN Word (Formula ty)
+   | ExistsN Word (Formula event ty)
      -- | ◯ φ
      --   For the next unit of time from now, φ.
-   | Next (Formula ty)
+   | Next (Formula event ty)
      -- | ◯ⁿ φ
      --   ◯⁰ φ ≡ φ
      --   ◯¹⁺ᵏ φ ≡ ◯ (◯ᵏ φ)
      --   For the n-th unit of time from now, φ
-   | NextN Word (Formula ty)
+   | NextN Word (Formula event ty)
      -- | φ |ⁿ ψ
      --   φ |⁰ ψ ≡ ⊤
      --   φ |¹⁺ᵏ ψ ≡ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ)
      --   φ until ψ in the n units of time from now
-   | UntilN Word (Formula ty) (Formula ty)
+   | UntilN Word (Formula event ty) (Formula event ty)
      -- | A ty c̄
    | Atom ty (Set PropConstraint)
    -------------------------------------
@@ -109,13 +105,13 @@ data Formula ty =
 
    ------------ Connective -------------
      -- | φ ∨ ψ
-   | Or (Formula ty) (Formula ty)
+   | Or (Formula event ty) (Formula event ty)
      -- | φ ∧ ψ
-   | And (Formula ty) (Formula ty)
+   | And (Formula event ty) (Formula event ty)
      -- | ¬ φ
-   | Not (Formula ty)
+   | Not (Formula event ty)
      -- | φ ⇒ ψ
-   | Implies (Formula ty) (Formula ty)
+   | Implies (Formula event ty) (Formula event ty)
      -- | T
    | Top
      -- | ⊥
@@ -126,19 +122,19 @@ data Formula ty =
    ----------- Event property ----------
      -- | ∀x. φ
      --   `x` implicitly ranges over the set of all integers and finite strings
-   | PropForall PropVarIdentifier (Formula ty)
+   | PropForall PropVarIdentifier (Formula event ty)
      -- | ∀(x ∈ v̄). φ
      --   `x` ranges over values in `v̄`
-   | PropForallN PropVarIdentifier (Set PropValue) (Formula ty)
+   | PropForallN PropVarIdentifier (Set PropValue) (Formula event ty)
      -- | i = v
-   | PropEq (Relevance ty) PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropEq (Relevance event ty) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
 
 -- | Compute the total `Relevance` of the formula.
-relevance :: Ord ty => Formula ty -> Relevance ty
+relevance :: (Ord event, Ord ty) => Formula event ty -> Relevance event ty
 relevance = go mempty where
-  go :: Ord ty => Relevance ty -> Formula ty -> Relevance ty
+  go :: (Ord event, Ord ty) => Relevance event ty -> Formula event ty -> Relevance event ty
   go acc (Forall _ phi)        = go acc phi
   go acc (ForallN _ phi)       = go acc phi
   go acc (ExistsN _ phi)       = go acc phi
@@ -156,22 +152,22 @@ relevance = go mempty where
   go acc (PropForallN _ _ phi) = go acc phi
   go acc (PropEq rel _ _)      = rel `union` acc
 
-unfoldForall :: Word -> Formula ty -> Formula ty
+unfoldForall :: Word -> Formula event ty -> Formula event ty
 unfoldForall k phi = And phi (Next (NextN k (Forall k phi)))
 
-unfoldForallN :: Word -> Formula ty -> Formula ty
+unfoldForallN :: Word -> Formula event ty -> Formula event ty
 unfoldForallN 0 _   = Top
 unfoldForallN k phi = And phi (Next (ForallN (k - 1) phi))
 
-unfoldExistsN :: Word -> Formula ty -> Formula ty
+unfoldExistsN :: Word -> Formula event ty -> Formula event ty
 unfoldExistsN 0 _   = Bottom
 unfoldExistsN k phi = Or phi (Next (ExistsN (k - 1) phi))
 
-unfoldNextN :: Word -> Formula ty -> Formula ty
+unfoldNextN :: Word -> Formula event ty -> Formula event ty
 unfoldNextN 0 phi = phi
 unfoldNextN k phi = Next (NextN (k - 1) phi)
 
-unfoldUntilN :: Word -> Formula ty -> Formula ty -> Formula ty
+unfoldUntilN :: Word -> Formula event ty -> Formula event ty -> Formula event ty
 unfoldUntilN 0 _ _ = Top
 unfoldUntilN k phi psi =
   Or psi
@@ -183,7 +179,7 @@ unfoldUntilN k phi psi =
        )
      )
 
-and :: [Formula ty] -> Formula ty
+and :: [Formula event ty] -> Formula event ty
 and []           = Top
 and [phi]        = phi
 and (phi : phis) = And phi (and phis)
@@ -191,7 +187,7 @@ and (phi : phis) = And phi (and phis)
 -- | It's useful to express temporal aspect of the formulas in a familiar time unit (e.g milliseconds).
 --   Yet, the LTL machinery works with nameless abstract time units.
 --   This function can be used to convert one into the other.
-interpTimeunit :: (Word -> Word) -> Formula ty -> Formula ty
+interpTimeunit :: (Word -> Word) -> Formula event ty -> Formula event ty
 interpTimeunit f (Forall k phi) = Forall (f k) (interpTimeunit f phi)
 interpTimeunit f (ForallN k phi) = ForallN (f k) (interpTimeunit f phi)
 interpTimeunit f (ExistsN k phi) = ExistsN (f k) (interpTimeunit f phi)
@@ -260,8 +256,6 @@ interpTimeunit f (PropForallN x dom phi) = PropForallN x dom (interpTimeunit f p
 class Event a ty | a -> ty where
   -- | Is the event of the given type?
   ofTy :: a -> ty -> Bool
-  -- | Index of the event.
-  index :: a -> EventIndex
   -- | Properties of the event pertinent to the given type.
   --   props e t assumes that ofTy e t = True
   props :: a -> ty -> Map PropVarIdentifier PropValue

@@ -19,7 +19,7 @@ substPropConstraint :: PropValue -> PropVarIdentifier -> PropConstraint -> PropC
 substPropConstraint v x (PropConstraint k t) = PropConstraint k (substPropTerm v x t)
 
 -- | φ[v / x]
-substFormula :: PropValue -> PropVarIdentifier -> Formula a -> Formula a
+substFormula :: PropValue -> PropVarIdentifier -> Formula event a -> Formula event a
 substFormula v x (Forall k phi) = Forall k (substFormula v x phi)
 substFormula v x (ForallN k phi) = ForallN k (substFormula v x phi)
 substFormula v x (ExistsN k phi) = ExistsN k (substFormula v x phi)

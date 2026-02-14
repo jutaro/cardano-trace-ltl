@@ -5,15 +5,15 @@ import           Prelude                  hiding (not)
 
 -- | t ::= ☐ | ¬☐ | t ∧ t | t ∨ t | ⊤ | ⊥
 --   NOTE: "☐" here stands for "atom".
-data Fragment1 ty = Atom (Relevance ty)
-                  | NotAtom (Relevance ty)
-                  | And (Fragment1 ty) (Fragment1 ty)
-                  | Or (Fragment1 ty) (Fragment1 ty)
-                  | Top
-                  | Bottom
+data Fragment1 event ty = Atom (Relevance event ty)
+                        | NotAtom (Relevance event ty)
+                        | And (Fragment1 event ty) (Fragment1 event ty)
+                        | Or (Fragment1 event ty) (Fragment1 event ty)
+                        | Top
+                        | Bottom
 
 -- | ¬ t
-not :: Fragment1 ty -> Fragment1 ty
+not :: Fragment1 event ty -> Fragment1 event ty
 not (Atom set)    = NotAtom set
 not (NotAtom set) = Atom set
 not (And a b)     = Or (not a) (not b)

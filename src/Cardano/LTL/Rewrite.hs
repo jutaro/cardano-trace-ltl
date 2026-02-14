@@ -18,7 +18,7 @@ import qualified Data.Set as Set
 
 -- | Call the given function on all sub-expressions of the formula recursively
 --   up to any temporal operator (= heterogeneous fragment), exclusively.
-recurseHomogeneous :: (Formula ty -> Maybe (Formula ty)) -> Formula ty -> Formula ty
+recurseHomogeneous :: (Formula event ty -> Maybe (Formula event ty)) -> Formula event ty -> Formula event ty
 recurseHomogeneous _ self@(Atom {})     = self
 recurseHomogeneous _ self@(Forall {})   = self
 recurseHomogeneous _ self@(ExistsN {})  = self
@@ -41,11 +41,11 @@ recurseHomogeneous f self@(PropForall x phi)      = fromMaybe (PropForall x (rec
 recurseHomogeneous f self@(PropForallN x dom phi) = fromMaybe (PropForallN x dom (recurseHomogeneous f phi)) (f self)
 
 -- | Rewrite the formula by applying the fragment retraction & normalisation recursively.
-rewriteFragment :: Ord ty => Formula ty -> Formula ty
+rewriteFragment :: (Ord event, Ord ty) => Formula event ty -> Formula event ty
 rewriteFragment phi = recurseHomogeneous (normaliseFragment (findAtoms phi mempty)) phi
 
 -- | Rewrite the formula by applying the homogeneous fragment retraction & normalisation recursively.
-rewriteHomogeneous :: Formula ty -> Formula ty
+rewriteHomogeneous :: Formula event ty -> Formula event ty
 rewriteHomogeneous = recurseHomogeneous normaliseHomogeneous
 
 -- | Rewrites the formula by the following logical identities recursively:
@@ -76,7 +76,7 @@ rewriteHomogeneous = recurseHomogeneous normaliseHomogeneous
 --   ∀(x ∈ {v} ⊔ v̄). ⊥ = ⊥
 --   ∀(x ∈ {v} ⊔ v̄). ⊤ = ⊤
 --   Additionally, unfolds base-cases of finite temporal operators.
-rewriteIdentity :: Eq ty => Formula ty -> Formula ty
+rewriteIdentity :: Eq ty => Formula event ty -> Formula event ty
 rewriteIdentity (Forall k phi) =
   case rewriteIdentity phi of
     Top  -> Top

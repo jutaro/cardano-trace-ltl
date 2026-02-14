@@ -45,7 +45,6 @@ import qualified Data.Text                          as Text
 import qualified Data.Text.IO                       as Text
 import           Data.Text.Lazy                     (toStrict)
 import           Data.Text.Lazy.Builder             (toLazyText)
-import           GHC.Generics                       (Generic)
 import           Options.Applicative                hiding (Success)
 import           Streaming
 import           System.Exit                        (die)
@@ -59,14 +58,6 @@ displayMetrics = True
 displayMetrics = False
 #endif
 
-newtype TraceProps = TraceProps { slot :: Int } deriving (Show, Eq, Ord, Generic)
-
-instance FromJSON TraceProps
-
-deriving instance Eq TraceMessage
-
-deriving instance Ord TraceMessage
-
 -- | Extract all accessible properties (fields) from the json object, non-recursively.
 --   Accessible fields are all fields of one of the following types: number, string.
 extractProps :: Object -> Map PropVarIdentifier PropValue
@@ -78,15 +69,14 @@ extractProps = Map.delete "kind" . Map.fromList . mapMaybe parse . KeyMap.toList
     parse _             = Nothing
 
 instance Event TemporalEvent Text where
-  ofTy (TemporalEvent _ msgs _) c = isJust $ find (\msg -> msg.tmsgNS == c) msgs
-  index (TemporalEvent _ _ idx) = idx
-  props (TemporalEvent _ msgs _) c =
+  ofTy (TemporalEvent _ msgs) c = isJust $ find (\msg -> msg.tmsgNS == c) msgs
+  props (TemporalEvent _ msgs) c =
     case find (\msg -> msg.tmsgNS == c) msgs of
       Just x  -> Map.insert "host" (TextValue x.tmsgHost)       $
                    Map.insert "thread" (TextValue x.tmsgThread) $
                      extractProps x.tmsgData
       Nothing -> error ("Not an event of type " <> unpack c)
-  beg (TemporalEvent t _ _) = t
+  beg (TemporalEvent t _) = t
 
 tabulate :: Int -> Text -> Text
 tabulate n = Text.unlines . fmap (Text.replicate n " " <>) . Text.lines
@@ -108,35 +98,32 @@ prettyTraceMessage TraceMessage{..} =
 
 
 prettyTemporalEvent :: TemporalEvent -> Text -> Text
-prettyTemporalEvent (TemporalEvent _ msgs _) ns =
+prettyTemporalEvent (TemporalEvent _ msgs) ns =
   maybe (intercalate "\n" (fmap prettyTraceMessage msgs) <> "  // " <> ns) prettyTraceMessage (find (\ x -> x.tmsgNS == ns) msgs)
 
-prettySatisfactionResult :: [TemporalEvent] -> Formula Text -> SatisfactionResult Text -> Text
-prettySatisfactionResult _ initial Satisfied = prettyFormula initial Prec.Universe <> " " <> green "(✔)"
-prettySatisfactionResult events initial (Unsatisfied rel) =
+prettySatisfactionResult :: Formula TemporalEvent Text -> SatisfactionResult TemporalEvent Text -> Text
+prettySatisfactionResult initial Satisfied = prettyFormula initial Prec.Universe <> " " <> green "(✔)"
+prettySatisfactionResult initial (Unsatisfied rel) =
   prettyFormula initial Prec.Universe <> red " (✗)" <> "\n"
-    <> tabulate 2 (intercalate "\n------\n" (go (Set.toList rel))) where
-      go :: [(EventIndex, Text)] -> [Text]
-      go []       = []
-      go ((e, ty) : es) = prettyTemporalEvent (events !! fromIntegral e) ty : go es
+    <> tabulate 2 (intercalate "\n------\n" (fmap (uncurry prettyTemporalEvent) (Set.toList rel)))
 
-check :: MVar () -> Formula Text -> [TemporalEvent] -> IO ()
+check :: MVar () -> Formula TemporalEvent Text -> [TemporalEvent] -> IO ()
 check stdoutLock phi events =
   let result = satisfies phi events
-      text = prettySatisfactionResult events phi result in
+      text = prettySatisfactionResult phi result in
   withMVar stdoutLock (const $ Text.putStrLn text)
 
-checkS' :: MVar () -> Formula Text -> Stream (Of TemporalEvent) IO () -> IO ()
+checkS' :: MVar () -> Formula TemporalEvent Text -> Stream (Of TemporalEvent) IO () -> IO ()
 checkS' stdoutLock phi events = do
   let initial = SatisfyMetrics 0 phi 0
   metrics <- newIORef initial
   withAsync (when displayMetrics $ runDisplay initial metrics) $ \counterDisplayThread -> do
-    (consumed, r) <- satisfiesS phi events metrics
-    let result = prettySatisfactionResult consumed phi r
+    r <- satisfiesS phi events metrics
+    let result = prettySatisfactionResult phi r
     withMVar stdoutLock $ const $ Text.putStrLn result
     cancel counterDisplayThread
   where
-    runDisplay :: SatisfyMetrics Text -> IORef (SatisfyMetrics Text) -> IO ()
+    runDisplay :: SatisfyMetrics TemporalEvent Text -> IORef (SatisfyMetrics TemporalEvent Text) -> IO ()
     runDisplay prev counter = do
       next <- readIORef counter
       withMVar stdoutLock $ const $ do
@@ -149,7 +136,7 @@ checkS' stdoutLock phi events = do
       runDisplay next counter
 
 -- TODO: "Restart" the formula once it is ⊥.
-checkOnline :: TemporalEventDurationMicrosec -> Word -> FailureMode -> IngestMode -> [Filename] -> [Formula Text] -> IO ()
+checkOnline :: TemporalEventDurationMicrosec -> Word -> FailureMode -> IngestMode -> [Filename] -> [Formula TemporalEvent Text] -> IO ()
 checkOnline eventDuration retentionMs failureMode ingestMode files phis = do
   ing <- mkIngestor (fromIntegral retentionMs)
   for_ files (ingestFileThreaded ing failureMode ingestMode)
@@ -158,7 +145,7 @@ checkOnline eventDuration retentionMs failureMode ingestMode files phis = do
     reader <- mkIngestorReader ing
     checkS' stdoutLock phi (readS reader eventDuration)
 
-checkOffline :: TemporalEventDurationMicrosec -> Filename -> [Formula Text] -> IO ()
+checkOffline :: TemporalEventDurationMicrosec -> Filename -> [Formula TemporalEvent Text] -> IO ()
 checkOffline eventDuration file phis = do
   events <- read file eventDuration
   stdoutLock <- newMVar ()

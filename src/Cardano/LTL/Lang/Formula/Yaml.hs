@@ -29,7 +29,7 @@ readPropValues path = decodeFileEither @PropValuesEncodedType path >>= \case
     parsePropValue :: Text -> PropValue
     parsePropValue txt = either (const (TextValue txt)) IntValue (parse Parser.int "input" txt)
 
-readFormulas :: FilePath -> Context -> Parser ty -> IO (Either Exception [Formula ty])
+readFormulas :: FilePath -> Context -> Parser ty -> IO (Either Exception [Formula event ty])
 readFormulas path ctx ty = decodeFileEither @FormulasEncodedType path >>= \case
   Left err -> pure (Left (Text.pack $ prettyPrintParseException err))
   Right formulas ->

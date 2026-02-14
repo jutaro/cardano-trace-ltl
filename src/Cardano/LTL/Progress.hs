@@ -21,7 +21,7 @@ import qualified Data.Text                           as Text
 
 -- | This is an algorithm for representing
 --   (t t̄ ⊧ φ) in terms of ∃φ'. (t̄ ⊧ φ')
-next :: (Event event ty, Eq ty) => Formula ty -> event -> Formula ty
+next :: (Event event ty, Eq ty) => Formula event ty -> event -> Formula event ty
 next (Forall k phi) s = next (unfoldForall k phi) s
 next (ForallN k phi) s = next (unfoldForallN k phi) s
 next (ExistsN k phi) s = next (unfoldExistsN k phi) s
@@ -37,7 +37,7 @@ next Top _ = Top
 next (Atom c is) s | ofTy s c =
   F.and $ flip fmap (Set.toList is) $ \(PropConstraint key t) ->
     case lookup key (props s c) of
-      Just v  -> PropEq (Set.singleton (index s, c)) t v
+      Just v  -> PropEq (Set.singleton (s, c)) t v
       Nothing ->
 #ifdef CRITICAL_ERROR_ON_MISSING_KEY
         error $ "Missing key: " <> Text.unpack key
@@ -50,7 +50,7 @@ next (PropForallN x dom phi) s = PropForallN x dom (next phi s)
 next (PropEq rel a b) _ = PropEq rel a b
 
 -- | This is an algorithm for (∅ ⊧ ◯ φ)
-terminateNext :: Formula a -> HomogeneousFormula a
+terminateNext :: Formula event a -> HomogeneousFormula event a
 terminateNext (Next phi) = terminateNext phi
 terminateNext (Forall _ phi)  = terminateNext phi
 terminateNext (Or phi psi) = terminateNext phi `H.Or` terminateNext psi
@@ -69,7 +69,7 @@ terminateNext (ForallN k phi) = terminateNext (unfoldForallN k phi)
 terminateNext (UntilN k phi psi) = terminateNext (unfoldUntilN k phi psi)
 
 -- | This is an algorithm for (∅ ⊧ φ)
-terminate :: Formula a -> HomogeneousFormula a
+terminate :: Formula event a -> HomogeneousFormula event a
 terminate (Forall k phi)          = terminate (unfoldForall k phi)
 terminate (ForallN k phi)         = terminate (unfoldForallN k phi)
 terminate (ExistsN k phi)         = terminate (unfoldExistsN k phi)
