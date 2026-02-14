@@ -22,24 +22,24 @@ data ExtendedPropValue = Val PropValue | Placeholder deriving (Show, Ord, Eq)
 
 -- | A `Formula` with no temporal operators.
 --   Equivalence of two `HomogeneousFormula`s is decidable.
-data HomogeneousFormula ty =
+data HomogeneousFormula event ty =
    ------------ Connective -------------
-     Or (HomogeneousFormula ty) (HomogeneousFormula ty)
-   | And (HomogeneousFormula ty) (HomogeneousFormula ty)
-   | Not (HomogeneousFormula ty)
-   | Implies (HomogeneousFormula ty) (HomogeneousFormula ty)
+     Or (HomogeneousFormula event ty) (HomogeneousFormula event ty)
+   | And (HomogeneousFormula event ty) (HomogeneousFormula event ty)
+   | Not (HomogeneousFormula event ty)
+   | Implies (HomogeneousFormula event ty) (HomogeneousFormula event ty)
    | Top
    | Bottom
    -------------------------------------
 
 
    ----------- Event property ----------
-   | PropForall PropVarIdentifier (HomogeneousFormula ty)
-   | PropForallN PropVarIdentifier (Set PropValue) (HomogeneousFormula ty)
-   | PropEq (Relevance ty) PropTerm PropValue deriving (Show, Eq, Ord)
+   | PropForall PropVarIdentifier (HomogeneousFormula event ty)
+   | PropForallN PropVarIdentifier (Set PropValue) (HomogeneousFormula event ty)
+   | PropEq (Relevance event ty) PropTerm PropValue deriving (Show, Eq, Ord)
    -------------------------------------
 
-toFormula :: HomogeneousFormula ty -> Formula ty
+toFormula :: HomogeneousFormula event ty -> Formula event ty
 toFormula (And a b)               = F.And (toFormula a) (toFormula b)
 toFormula (Or a b)                = F.Or (toFormula a) (toFormula b)
 toFormula (Implies a b)           = F.Implies (toFormula a) (toFormula b)
@@ -50,7 +50,7 @@ toFormula (PropEq e a b)          = F.PropEq e a b
 toFormula (PropForall x phi)      = F.PropForall x (toFormula phi)
 toFormula (PropForallN x dom phi) = F.PropForallN x dom (toFormula phi)
 
-valuesAccum :: Set PropValue -> PropVarIdentifier -> HomogeneousFormula ty -> Set PropValue
+valuesAccum :: Set PropValue -> PropVarIdentifier -> HomogeneousFormula event ty -> Set PropValue
 valuesAccum acc x (Or phi psi) = valuesAccum (valuesAccum acc x phi) x psi
 valuesAccum acc x (And phi psi) = valuesAccum (valuesAccum acc x phi) x psi
 valuesAccum acc x (Not phi) = valuesAccum acc x phi
@@ -66,11 +66,11 @@ valuesAccum acc x (PropForallN x' _ phi) | x /= x' = valuesAccum acc x phi
 valuesAccum acc _ (PropForallN {}) = acc
 
 -- | Set of values the given prop var can take in the formula.
-values :: PropVarIdentifier -> HomogeneousFormula ty -> Set PropValue
+values :: PropVarIdentifier -> HomogeneousFormula event ty -> Set PropValue
 values = valuesAccum Set.empty
 
 -- | φ[v / x]
-substHomogeneousFormula :: ExtendedPropValue -> PropVarIdentifier -> HomogeneousFormula ty -> HomogeneousFormula ty
+substHomogeneousFormula :: ExtendedPropValue -> PropVarIdentifier -> HomogeneousFormula event ty -> HomogeneousFormula event ty
 substHomogeneousFormula v x (And phi psi) = And (substHomogeneousFormula v x phi) (substHomogeneousFormula v x psi)
 substHomogeneousFormula v x (Or phi psi) = Or (substHomogeneousFormula v x phi) (substHomogeneousFormula v x psi)
 substHomogeneousFormula v x (Implies phi psi) = Implies (substHomogeneousFormula v x phi) (substHomogeneousFormula v x psi)
@@ -90,7 +90,7 @@ substHomogeneousFormula _ _ (PropForallN x' dom phi) = PropForallN x' dom phi
 
 -- | Evaluate the `HomogeneousFormula` onto `Bool`.
 --   This is the "interesting" part of the iso: `HomogeneousFormula` ≅ `Bool`
-eval :: HomogeneousFormula ty -> Bool
+eval :: HomogeneousFormula event ty -> Bool
 eval (Or phi psi) = eval phi || eval psi
 eval (And phi psi) = eval phi && eval psi
 eval (Not phi) = not (eval phi)
@@ -113,17 +113,17 @@ eval (PropForallN x dom phi) =
   )
 
 -- | This is the "easy" part of the iso: `HomogeneousFormula` ≅ `Bool`
-quote :: Bool -> HomogeneousFormula ty
+quote :: Bool -> HomogeneousFormula event ty
 quote True  = Top
 quote False = Bottom
 
 -- | Check equivalence of two `HomogeneousFormula`s.
-equiv :: HomogeneousFormula ty -> HomogeneousFormula ty -> Bool
+equiv :: HomogeneousFormula event ty -> HomogeneousFormula event ty -> Bool
 equiv = on (==) eval
 
-retract :: Formula ty -> Maybe (HomogeneousFormula ty)
+retract :: Formula event ty -> Maybe (HomogeneousFormula event ty)
 retract = go Set.empty where
-  go :: Set PropVarIdentifier -> Formula ty -> Maybe (HomogeneousFormula ty)
+  go :: Set PropVarIdentifier -> Formula event ty -> Maybe (HomogeneousFormula event ty)
   go _     (F.ForallN {})                = Nothing
   go _     (F.ExistsN {})                = Nothing
   go _     (F.Forall {})                 = Nothing
@@ -144,6 +144,6 @@ retract = go Set.empty where
   go bound (F.PropForall x phi)          = PropForall x <$> go (Set.insert x bound) phi
   go bound (F.PropForallN x dom phi)     = PropForallN x dom <$> go (Set.insert x bound) phi
 
-normaliseHomogeneous :: Formula ty -> Maybe (Formula ty)
+normaliseHomogeneous :: Formula event ty -> Maybe (Formula event ty)
 normaliseHomogeneous phi =
   toFormula . quote . eval <$> retract phi

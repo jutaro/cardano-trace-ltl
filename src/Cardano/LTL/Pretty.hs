@@ -89,7 +89,7 @@ wordToSubscript = wordToXscript subscript0to9
 
 
 -- | Pretty-print a `Formula` using unicode operators.
-prettyFormula :: Show a => Formula a -> Prec -> Text
+prettyFormula :: Show a => Formula event a -> Prec -> Text
 prettyFormula (Forall k phi) lvl = surround lvl Prec.Prefix $
   "☐ ᪲" <> (if k == 0 then "" else wordToSubscript k) <> " " <> prettyFormula phi Prec.Atom
 prettyFormula (ForallN k phi) lvl = surround lvl Prec.Prefix $

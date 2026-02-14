@@ -12,7 +12,7 @@ import           Prelude                             hiding (abs, and, not, or)
 import Control.Applicative ((<|>))
 
 -- | Try to retract `GuardedFormula` into `Fragment0` taking the atom to be the given (x = v).
-retract :: Eq ty => (PropVarIdentifier, PropValue) -> Formula ty -> Maybe (Fragment0 ty)
+retract :: Eq ty => (PropVarIdentifier, PropValue) -> Formula event ty -> Maybe (Fragment0 event ty)
 retract _ (F.Atom {})        = Nothing
 retract _ (F.UntilN {})      = Nothing
 retract _ (F.Forall {})      = Nothing
@@ -33,7 +33,7 @@ retract (!x, !v) (F.PropEq rel (Var x') v') | x == x' && v == v'
 retract _ (F.PropEq {})      = Nothing
 
 -- | Evaluate `Fragment0` to `Fragment1`
-toFragment1 :: Fragment0 ty -> Fragment1 ty
+toFragment1 :: Fragment0 event ty -> Fragment1 event ty
 toFragment1 (F0.Atom ty)     = F1.Atom ty
 toFragment1 (F0.Not x)       = F1.not (toFragment1 x)
 toFragment1 (F0.And a b)     = F1.And (toFragment1 a) (toFragment1 b)
@@ -43,7 +43,7 @@ toFragment1 F0.Top           = F1.Top
 toFragment1 F0.Bottom        = F1.Bottom
 
 -- | Evaluate `Fragment1` to `Fragment2`
-toFragment2 :: Ord ty => Fragment1 ty -> Fragment2 ty
+toFragment2 :: (Ord event, Ord ty) => Fragment1 event ty -> Fragment2 event ty
 toFragment2 (F1.Atom ty)    = F2.Atom ty
 toFragment2 (F1.NotAtom ty) = F2.NotAtom ty
 toFragment2 F1.Bottom       = F2.Bottom
@@ -52,14 +52,14 @@ toFragment2 (F1.And a b)    = F2.and (toFragment2 a) (toFragment2 b)
 toFragment2 (F1.Or a b)     = F2.or (toFragment2 a) (toFragment2 b)
 
 -- | Embed `Fragment2` into `GuardedFormula` interpretting the given pair as (x = v).
-toFormula :: (PropVarIdentifier, PropValue) -> Fragment2 ty -> Formula ty
+toFormula :: (PropVarIdentifier, PropValue) -> Fragment2 event ty -> Formula event ty
 toFormula (!x, !v) (F2.Atom ty)    = F.PropEq ty (Var x) v
 toFormula (!x, !v) (F2.NotAtom ty) = F.Not (F.PropEq ty (Var x) v)
 toFormula _ F2.Bottom              = F.Bottom
 toFormula _ F2.Top                 = F.Top
 
 -- | Find all `Fragment0` atoms in the form of (x = v) in the formula "now".
-findAtoms :: Formula ty -> Set (PropVarIdentifier, PropValue) -> Set (PropVarIdentifier, PropValue)
+findAtoms :: Formula event ty -> Set (PropVarIdentifier, PropValue) -> Set (PropVarIdentifier, PropValue)
 findAtoms (F.Atom {}) set             = set
 findAtoms (F.UntilN {}) set           = set
 findAtoms (F.Forall {}) set           = set
@@ -81,7 +81,7 @@ findAtoms (F.PropForallN _ _ phi) set = findAtoms phi set
 -- | Given a set of propositional equalities {xᵢ = vᵢ}ᵢ and a formula, if the formula can be retracted into
 --   `Fragment0` where the atom is taken to be one of the equalities (xᵢ = vᵢ), computes normal form in `Fragment0` and
 --   embeds the result back into `Formula`. By construction the formula can be retracted for at most one (xᵢ = vᵢ) from the set.
-normaliseFragment :: Ord ty => Set (PropVarIdentifier, PropValue) -> Formula ty -> Maybe (Formula ty)
+normaliseFragment :: (Ord event, Ord ty) => Set (PropVarIdentifier, PropValue) -> Formula event ty -> Maybe (Formula event ty)
 normaliseFragment set phi = go (Set.toList set) where
  go [] = Nothing
  go (atom : atoms) = toFormula atom . toFragment2 . toFragment1 <$> retract atom phi <|> go atoms

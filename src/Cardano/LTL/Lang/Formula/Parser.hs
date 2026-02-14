@@ -91,10 +91,10 @@ text = Text.pack <$> (char '\"' *> many one) <* char '\"' where
   one :: Parser Char
   one = satisfy (\x -> not (isControl x) && (x /= '"') && (x /= '\n') && (x /= '\r'))
 
-formulaBottom :: Parser (Formula ty)
+formulaBottom :: Parser (Formula event ty)
 formulaBottom = Bottom <$ string "⊥"
 
-formulaTop :: Parser (Formula ty)
+formulaTop :: Parser (Formula event ty)
 formulaTop = Top <$ string "⊤"
 
 constraint :: Parser PropConstraint
@@ -103,31 +103,31 @@ constraint = PropConstraint <$> (text <* space <* char '=') <*> (space *> propTe
 constraints :: Parser (Set PropConstraint)
 constraints = Set.fromList <$> (char '(' *> space *> sepBy constraint (space *> char ',' <* space) <* space <* char ')')
 
-formulaInParens :: Context -> Parser ty -> Parser (Formula ty)
+formulaInParens :: Context -> Parser ty -> Parser (Formula event ty)
 formulaInParens ctx ty = char '(' *> space *> formulaUniverse ctx ty <* space <* char ')'
 
-formulaPropAtom :: Parser ty -> Parser (Formula ty)
+formulaPropAtom :: Parser ty -> Parser (Formula event ty)
 formulaPropAtom ty = Atom <$> ty <*> (space *> constraints)
 
-formulaAtom :: Context -> Parser ty -> Parser (Formula ty)
+formulaAtom :: Context -> Parser ty -> Parser (Formula event ty)
 formulaAtom ctx ty = formulaBottom <|> formulaTop <|> formulaInParens ctx ty <|> formulaPropAtom ty
 
-formulaNext :: Context -> Parser ty -> Parser (Formula ty)
+formulaNext :: Context -> Parser ty -> Parser (Formula event ty)
 formulaNext ctx ty = Next <$> (string "◯" *> space *> formulaAtom ctx ty)
 
-formulaNextN :: Context -> Parser ty -> Parser (Formula ty)
+formulaNextN :: Context -> Parser ty -> Parser (Formula event ty)
 formulaNextN ctx ty = NextN <$> (try (string "◯" *> superscriptWord) <* space) <*> formulaAtom ctx ty
 
-formulaExistsN :: Context -> Parser ty -> Parser (Formula ty)
+formulaExistsN :: Context -> Parser ty -> Parser (Formula event ty)
 formulaExistsN ctx ty = ExistsN <$> (string "♢" *> superscriptWord <* space) <*> formulaAtom ctx ty
 
-formulaForallN :: Context -> Parser ty -> Parser (Formula ty)
+formulaForallN :: Context -> Parser ty -> Parser (Formula event ty)
 formulaForallN ctx ty = ForallN <$> (string "☐" *> superscriptWord <* space) <*> formulaAtom ctx ty
 
-formulaForall :: Context -> Parser ty -> Parser (Formula ty)
+formulaForall :: Context -> Parser ty -> Parser (Formula event ty)
 formulaForall ctx ty = Forall <$> (string "☐ ᪲" *> option 0 subscriptWord <* space) <*> formulaAtom ctx ty
 
-formulaNot :: Context -> Parser ty -> Parser (Formula ty)
+formulaNot :: Context -> Parser ty -> Parser (Formula event ty)
 formulaNot ctx ty = Not <$> (string "¬" *> space *> formulaAtom ctx ty)
 
 propValue :: Parser PropValue
@@ -147,11 +147,11 @@ setPropValue ctx = setPropValueVar ctx <|> setPropValueConst
 propTerm :: Parser PropTerm
 propTerm = try (Const <$> propValue) <|> Var <$> variableIdentifier
 
-formulaEq :: Context -> Parser ty -> Parser (Formula ty)
+formulaEq :: Context -> Parser ty -> Parser (Formula event ty)
 formulaEq ctx ty = try (PropEq Set.empty <$> (propTerm <* space <* char '=') <*> (space *> propValue))
         <|> formulaAtom ctx ty
 
-formulaPrefixOrEq :: Context -> Parser ty -> Parser (Formula ty)
+formulaPrefixOrEq :: Context -> Parser ty -> Parser (Formula event ty)
 formulaPrefixOrEq ctx ty =
       formulaNextN ctx ty
   <|> formulaNext ctx ty
@@ -161,34 +161,34 @@ formulaPrefixOrEq ctx ty =
   <|> formulaNot ctx ty
   <|> formulaEq ctx ty
 
-formulaAnd :: Context -> Parser ty -> Parser (Formula ty)
+formulaAnd :: Context -> Parser ty -> Parser (Formula event ty)
 formulaAnd ctx ty = apply <$> (formulaPrefixOrEq ctx ty <* space) <*> optional (do
     void $ string "∧"
     space
     formulaAnd ctx ty) where
-  apply :: Formula ty -> Maybe (Formula ty) -> Formula ty
+  apply :: Formula event ty -> Maybe (Formula event ty) -> Formula event ty
   apply phi Nothing     = phi
   apply phi (Just !psi) = And phi psi
 
-formulaOr :: Context -> Parser ty -> Parser (Formula ty)
+formulaOr :: Context -> Parser ty -> Parser (Formula event ty)
 formulaOr ctx ty = apply <$> (formulaAnd ctx ty <* space) <*> optional (do
     void $ string "∨"
     space
     formulaOr ctx ty) where
-  apply :: Formula ty -> Maybe (Formula ty) -> Formula ty
+  apply :: Formula event ty -> Maybe (Formula event ty) -> Formula event ty
   apply phi Nothing     = phi
   apply phi (Just !psi) = Or phi psi
 
-formulaImplies :: Context -> Parser ty -> Parser (Formula ty)
+formulaImplies :: Context -> Parser ty -> Parser (Formula event ty)
 formulaImplies ctx ty = apply <$> (formulaOr ctx ty <* space) <*> optional (do
     void $ string "⇒"
     space
     formulaImplies ctx ty) where
-  apply :: Formula ty -> Maybe (Formula ty) -> Formula ty
+  apply :: Formula event ty -> Maybe (Formula event ty) -> Formula event ty
   apply phi Nothing     = phi
   apply phi (Just !psi) = Implies phi psi
 
-formulaPropForall :: Context -> Parser ty -> Parser (Formula ty)
+formulaPropForall :: Context -> Parser ty -> Parser (Formula event ty)
 formulaPropForall ctx ty = do
   void $ string "∀"
   space
@@ -202,7 +202,7 @@ formulaPropForall ctx ty = do
   phi <- formulaUniverse ctx ty
   pure (maybe (PropForall x phi) (\dom -> PropForallN x dom phi) optDom)
 
-formulaPropForallN :: Context -> Parser ty -> Parser (Formula ty)
+formulaPropForallN :: Context -> Parser ty -> Parser (Formula event ty)
 formulaPropForallN ctx ty = do
   void $ try (string "∀" *> space *> string "(" *> space)
   x <- variableIdentifier
@@ -218,19 +218,19 @@ formulaPropForallN ctx ty = do
   phi <- formulaUniverse ctx ty
   pure (PropForallN x vs phi)
 
-formulaUntilN :: Context -> Parser ty -> Parser (Formula ty)
+formulaUntilN :: Context -> Parser ty -> Parser (Formula event ty)
 formulaUntilN ctx ty = apply <$> (formulaImplies ctx ty <* space) <*> optional (do
      void $ string "|"
      k <- superscriptWord
      space
      phi <- formulaImplies ctx ty
      pure (k, phi)) where
-  apply :: Formula ty -> Maybe (Word, Formula ty) -> Formula ty
+  apply :: Formula event ty -> Maybe (Word, Formula event ty) -> Formula event ty
   apply phi Nothing           = phi
   apply phi (Just (!k, !psi)) = UntilN k phi psi
 
-formulaUniverse :: Context -> Parser ty -> Parser (Formula ty)
+formulaUniverse :: Context -> Parser ty -> Parser (Formula event ty)
 formulaUniverse ctx ty = formulaPropForallN ctx ty <|> formulaPropForall ctx ty <|> formulaUntilN ctx ty
 
-formula :: Context -> Parser ty -> Parser (Formula ty)
+formula :: Context -> Parser ty -> Parser (Formula event ty)
 formula = formulaUniverse

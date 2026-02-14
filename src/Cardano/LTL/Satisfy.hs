@@ -35,9 +35,9 @@ import           Debug.Trace                              (trace)
 
 -- | The result of checking satisfaction of a formula against a timeline.
 -- | If unsatisfied, stores points in the timeline "relevant" to the formula.
-data SatisfactionResult ty = Satisfied | Unsatisfied (Relevance ty) deriving (Show, Eq)
+data SatisfactionResult event ty = Satisfied | Unsatisfied (Relevance event ty) deriving (Show, Eq)
 
-traceFormula :: Show ty => String -> Formula ty -> Formula ty
+traceFormula :: Show ty => String -> Formula event ty -> Formula event ty
 traceFormula ~str x =
 #ifdef TRACE
   trace (str <> " " <> Text.unpack (prettyFormula x Prec.Universe)) x
@@ -45,7 +45,10 @@ traceFormula ~str x =
   x
 #endif
 
-handleNext :: (Event event ty, Ord ty, Show ty) => (Int, Formula ty) -> event -> Either (SatisfactionResult ty) (Int, Formula ty)
+handleNext :: (Event event ty, Ord event, Ord ty, Show ty)
+           => (Int, Formula event ty)
+           -> event
+           -> Either (SatisfactionResult event ty) (Int, Formula event ty)
 handleNext (!n, !formula0) m =
   let formula1 = traceFormula ("(" <> show (1 + n) <> ")\ninitial:") formula0 in
   let formula2 = traceFormula "next:" $ next formula1 m in
@@ -57,7 +60,7 @@ handleNext (!n, !formula0) m =
     Bottom  -> Left (Unsatisfied (relevance formula0))
     formula -> Right (n + 1, formula5)
 
-handleEnd :: (Ord ty, Show ty) => (Int, Formula ty) -> SatisfactionResult ty
+handleEnd :: (Ord event, Ord ty, Show ty) => (Int, Formula event ty) -> SatisfactionResult event ty
 handleEnd (!n, !formula) =
     if (eval . terminate) formula
     then Satisfied
@@ -67,13 +70,16 @@ merge :: Either a a -> a
 merge = either id id
 
 -- | Check if the formula is satisfied in the given event timeline.
-satisfies :: (Event event ty, Ord ty, Show ty) => Foldable f => Formula ty -> f event -> SatisfactionResult ty
+satisfies :: (Event event ty, Ord event, Ord ty, Show ty, Foldable f)
+          => Formula event ty
+          -> f event
+          -> SatisfactionResult event ty
 satisfies formula xs = merge $ handleEnd <$> foldl' (\acc e -> acc >>= flip handleNext e) (Right (0, formula)) xs
 
 
-data SatisfyMetrics ty = SatisfyMetrics {
+data SatisfyMetrics event ty = SatisfyMetrics {
   eventsConsumed   :: Word64,
-  currentFormula   :: Formula ty,
+  currentFormula   :: Formula event ty,
   -- | μs
   currentTimestamp :: Word64
 }
@@ -81,24 +87,22 @@ data SatisfyMetrics ty = SatisfyMetrics {
 -- | Given a formula and a stream of events, forms a `Monad` computation that returns a `SatisfactionResult` once
 --    the formula is equivalent to ⊤ or ⊥. This may happen either once the stream terminates or if
 --    the formula is falsified early by some prefix of the stream.
-satisfiesS :: (Event event ty, Ord ty, Show ty)
-           => Formula ty
+satisfiesS :: (Event event ty, Ord event, Ord ty, Show ty)
+           => Formula event ty
            -> Stream (Of event) IO ()
-           -> IORef (SatisfyMetrics ty)
-           -> IO ({- FIXME: The list of consumed events is a memory leak -}[event],
-                    SatisfactionResult ty)
-satisfiesS formula input metrics = fmap (first reverse) <$> run $ mapped (pure. pure . runIdentity) $ unfold (go metrics) (0, formula, [], input) where
-  go :: (Ord ty, Event event ty, Show ty)
-     => IORef (SatisfyMetrics ty)
-     -> (Int, Formula ty, [event], Stream (Of event) IO ())
-     -> IO (Either ([event], SatisfactionResult ty) (Identity (Int, Formula ty, [event], Stream (Of event) IO ())))
-  go metrics (!n, !formula, !consumed, !input) = inspect input >>= \case
-    Left () -> pure $ Left
-      (consumed, handleEnd (n, formula))
+           -> IORef (SatisfyMetrics event ty)
+           -> IO (SatisfactionResult event ty)
+satisfiesS formula input metrics = run $ mapped (pure. pure . runIdentity) $ unfold (go metrics) (0, formula,  input) where
+  go :: (Event event ty, Ord event, Ord ty, Show ty)
+     => IORef (SatisfyMetrics event ty)
+     -> (Int, Formula event ty, Stream (Of event) IO ())
+     -> IO (Either (SatisfactionResult event ty) (Identity (Int, Formula event ty, Stream (Of event) IO ())))
+  go metrics (!n, !formula, !input) = inspect input >>= \case
+    Left () -> pure $ Left $
+      handleEnd (n, formula)
     Right (event :> more) -> do
-      let consumed' = event : consumed
       modifyIORef' metrics (\x -> SatisfyMetrics (1 + x.eventsConsumed) formula (beg event))
       pure $
-        bimap (consumed',)
-            (\(!n', !formula') -> Identity (n', formula', consumed', more))
-            (handleNext (n, formula) event)
+        fmap
+          (\(!n', !formula') -> Identity (n', formula', more))
+          (handleNext (n, formula) event)

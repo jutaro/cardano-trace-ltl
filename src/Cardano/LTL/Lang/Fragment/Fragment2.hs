@@ -6,10 +6,13 @@ import           Prelude                  hiding (and, or)
 
 -- | t ::= ☐ | ¬☐ | ⊤ | ⊥
 --   NOTE: "☐" here stands for "atom".
-data Fragment2 ty = Atom (Relevance ty) | NotAtom (Relevance ty) | Top | Bottom
+data Fragment2 event ty = Atom (Relevance event ty)
+                        | NotAtom (Relevance event ty)
+                        | Top
+                        | Bottom
 
 -- | t₀ ∧ t₁
-and :: Ord ty => Fragment2 ty -> Fragment2 ty -> Fragment2 ty
+and :: (Ord event, Ord ty) => Fragment2 event ty -> Fragment2 event ty -> Fragment2 event ty
 and (Atom rel)    (Atom rel')    = Atom (rel `union` rel')
 and (Atom _)      (NotAtom _)    = Bottom
 and (Atom _)      Bottom         = Bottom
@@ -22,7 +25,7 @@ and Top           t              = t
 and Bottom        _              = Bottom
 
 -- | t₀ ∨ t₁
-or :: Ord ty => Fragment2 ty -> Fragment2 ty -> Fragment2 ty
+or :: (Ord event, Ord ty) => Fragment2 event ty -> Fragment2 event ty -> Fragment2 event ty
 or (Atom rel)    (Atom rel')    = Atom (rel `union` rel')
 or (Atom _)      (NotAtom _)    = Top
 or (Atom rel)    Bottom         = Atom rel
