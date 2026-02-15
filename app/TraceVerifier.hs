@@ -24,11 +24,11 @@ import           Cardano.Trace.Feed                 (Filename,
                                                      read, readS)
 import           Cardano.Trace.Ingest
 import           Control.Concurrent                 (threadDelay)
-import           Control.Concurrent.Async           (async, cancel,
+import           Control.Concurrent.Async           (cancel,
                                                      forConcurrently_,
                                                      withAsync)
 import           Control.Concurrent.MVar
-import           Control.Monad                      (when)
+import           Control.Monad                      (when, forever)
 import           Data.Aeson
 import           Data.Aeson.Encode.Pretty
 import           Data.Aeson.Key                     (toText)
@@ -135,21 +135,22 @@ checkS' stdoutLock phi events = do
       threadDelay 1_000_000 -- 1s
       runDisplay next counter
 
--- TODO: "Restart" the formula once it is ⊥.
 checkOnline :: TemporalEventDurationMicrosec -> Word -> FailureMode -> IngestMode -> [Filename] -> [Formula TemporalEvent Text] -> IO ()
 checkOnline eventDuration retentionMs failureMode ingestMode files phis = do
   ing <- mkIngestor (fromIntegral retentionMs)
   for_ files (ingestFileThreaded ing failureMode ingestMode)
   stdoutLock <- newMVar ()
-  forConcurrently_ phis $ \phi -> async $ do
+  forConcurrently_ phis $ \phi -> forever $ do
+    -- WARNING: Are we creating a memory leak of the output channels here by re-spawning the ingestor readers?
     reader <- mkIngestorReader ing
+    Text.putStrLn ("Starting a satisfiability check on: " <> prettyFormula phi Prec.Universe)
     checkS' stdoutLock phi (readS reader eventDuration)
 
 checkOffline :: TemporalEventDurationMicrosec -> Filename -> [Formula TemporalEvent Text] -> IO ()
 checkOffline eventDuration file phis = do
   events <- read file eventDuration
   stdoutLock <- newMVar ()
-  forConcurrently_ phis $ \phi -> async $
+  forConcurrently_ phis $ \phi ->
     check stdoutLock phi events
 
 data Mode = Online | Offline deriving (Show, Eq)
