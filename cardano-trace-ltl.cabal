@@ -108,6 +108,7 @@ executable cardano-trace-ltl-parser
       , aeson
       , streaming
       , megaparsec
+      , scientific
 
 
     -- Directories containing source files.
@@ -129,6 +130,9 @@ executable cardano-trace-ltl-verifier
                       "-with-rtsopts=-N2"
 
     other-modules:
+        TraceVerifier.TraceMessage
+      , TraceVerifier.Cli
+      , TraceVerifier.Common
     other-extensions:
 
     -- Other library packages from which modules are imported.
@@ -151,7 +155,13 @@ executable cardano-trace-ltl-verifier
     -- Base language which the package is written in.
     default-language: GHC2021
 
-    default-extensions: Strict
+    default-extensions:
+      LambdaCase
+      OverloadedStrings
+      OverloadedRecordDot
+      RecordWildCards
+
+      Strict
 
 test-suite cardano-trace-ltl-test
   type: exitcode-stdio-1.0
