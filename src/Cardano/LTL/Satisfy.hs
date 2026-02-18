@@ -84,7 +84,7 @@ data SatisfyMetrics event ty = SatisfyMetrics {
   currentTimestamp :: Word64
 }
 
--- | Given a formula and a stream of events, forms a `Monad` computation that returns a `SatisfactionResult` once
+-- | Given a formula and a stream of events, forms an `IO` computation that returns a `SatisfactionResult` once
 --    the formula is equivalent to ⊤ or ⊥. This may happen either once the stream terminates or if
 --    the formula is falsified early by some prefix of the stream.
 satisfiesS :: (Event event ty, Ord event, Ord ty, Show ty)
