@@ -19,7 +19,7 @@ import           System.Environment              (getArgs)
 main :: IO ()
 main = do
   [!filename] <- getArgs
-  readYaml filename Parser.text >>= \case
+  readFormulas filename (Parser.Context []) Parser.text >>= \case
     Left err -> Text.putStrLn err
     Right formulas -> do
       traverse_ (\f -> Text.putStrLn (prettyFormula f Prec.Universe)) formulas

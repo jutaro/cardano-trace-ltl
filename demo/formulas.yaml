@@ -7,4 +7,4 @@
 - ∀n ∈ $NODES. n = "node-1" ∨ n = "node-2" ∨ n = "node-3"
 
 # Once we have cross-node trace messages
-# - ☐ ᪲ (∀b. "Forge.Loop.ForgedBlock"("block" = b) ⇒ (∀n. ♢³ ("Forge.Loop.AdoptedBlock"("blockHash" = b, "node-id" = n))))
+# - ☐ ᪲ (∀b. "Forge.Loop.ForgedBlock"("block" = b) ⇒ (∀(n ∈ $HOSTS). ♢³ ("Forge.Loop.AdoptedBlock"("blockHash" = b, "node-id" = n))))

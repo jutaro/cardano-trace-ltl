@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Main(main) where
 
@@ -19,20 +20,15 @@ import           Test.Tasty.HUnit
 import           Text.Megaparsec
 import Cardano.LTL.Lang.Formula.Parser (Context(..))
 
-type Identifier = EventIndex
-
 data Ty = Start | Success | Failure deriving (Show, Eq, Ord)
 
-data Msg = Msg Ty Identifier | Placeholder deriving (Show, Eq, Ord)
+data Msg = Msg Ty Int | Placeholder deriving (Show, Eq, Ord)
 
 instance Event Msg Ty where
   ofTy (Msg t _) t'  = t == t'
   ofTy Placeholder _ = False
 
-  index (Msg _ i)   = i
-  index Placeholder = 999
-
-  props (Msg _ i) _ = singleton "idx" (IntValue (fromIntegral i))
+  props (Msg _ i) _ = singleton "idx" (IntValue i)
 
   beg _ = 0
 
@@ -116,7 +112,7 @@ logEmpty = []
 
 -- ∀i. ☐ (Start("idx" = i) ⇒ ♢² (Success("idx" = i) ∨ Failure("idx" = i)))
 -- Start must be followed by either a corresponding success or failure within 3 units of time.
-prop1 :: Formula Ty
+prop1 :: Formula Msg Ty
 prop1 = PropForall "i" $ Forall 0 $
   Implies
     (Atom Start (fromList [PropConstraint "idx" (Var "i")]))
@@ -129,7 +125,7 @@ prop1 = PropForall "i" $ Forall 0 $
 
 -- ∀i. ¬ (Success("idx" = i) ∨ Failure("idx" = i)) |˜¹⁰⁰ Start("idx" = i)
 -- Start mustn't be preceded by a corresponding success or failure.
-prop2 :: Formula Ty
+prop2 :: Formula Msg Ty
 prop2 = PropForall "i" $ UntilN
   100
   (Not $
@@ -168,15 +164,15 @@ prop1SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       satisfies prop1 log3 @?= Satisfied
   , testCase (show log4 <> " does not satisfy the formula") $
       satisfies prop1 log4 @?= Unsatisfied
-        (fromList [(2, Start)])
+        (fromList [(Msg Start 2, Start)])
   , testCase (show log5 <> " satisfies the formula") $
       satisfies prop1 log5 @?= Satisfied
   , testCase (show log6 <> " satisfies the formula") $
       satisfies prop1 log6 @?= Unsatisfied
-        (fromList [(4,Start),(7,Success)])
+        (fromList [(Msg Start 4,Start),(Msg Success 7,Success)])
   , testCase (show log7 <> " does not satisfy the formula") $
       satisfies prop1 log7 @?= Unsatisfied
-        (fromList [(2, Start)])
+        (fromList [(Msg Start 2, Start)])
   ]
 
 prop2SatisfiabilityTests :: TestTree
@@ -190,16 +186,16 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
       satisfies prop2 logEmpty @?= Satisfied
   , testCase (show log8 <> "does not satisfy the formula") $
       satisfies prop2 log8 @?= Unsatisfied
-        (fromList [(1,Start),(1,Success)])
+        (fromList [(Msg Start 1,Start),(Msg Success 1,Success)])
   , testCase (show log9 <> " does not satisfy the formula") $
       satisfies prop2 log9 @?= Unsatisfied
-        (fromList [(1,Success)])
+        (fromList [(Msg Success 1,Success)])
   , testCase (show log10 <> " satisfies the formula") $
       satisfies prop2 log10 @?= Satisfied
   , testCase (show log11 <> " does not satisfy the formula") $
       satisfies prop2 log11 @?=
       Unsatisfied
-        (fromList [(1,Start),(1,Success),(2,Success)])
+        (fromList [(Msg Start 1,Start),(Msg Success 1,Success),(Msg Success 2,Success)])
 
   ]
 
@@ -231,7 +227,7 @@ parserTests :: TestTree
 parserTests = testGroup "Parsing"
   [
     testCase (Text.unpack formula0) $
-      parse (Parser.formula emptyCtx Parser.text) "input" formula0 @?=
+      parse (Parser.formula @Text @() emptyCtx Parser.text) "input" formula0 @?=
         Right
           (Forall
             0
@@ -246,7 +242,7 @@ parserTests = testGroup "Parsing"
                     (Atom "Forge.Loop.NodeNotLeader" (fromList [PropConstraint "slot" (Var "x")])))))))
   ,
     testCase (Text.unpack formula1) $
-      parse (Parser.formula emptyCtx Parser.text) "input" formula1 @?=
+      parse (Parser.formula @Text @() emptyCtx Parser.text) "input" formula1 @?=
         Right
           (Forall
             42
@@ -261,15 +257,15 @@ parserTests = testGroup "Parsing"
                 (Atom "StartLeadershipCheck" (fromList [PropConstraint "slot" (Var "i")])))))
   ,
     testCase (Text.unpack formula2) $
-      parse (Parser.formula emptyCtx Parser.text) "input" formula2 @?=
+      parse (Parser.formula @Text @() emptyCtx Parser.text) "input" formula2 @?=
         Right (ForallN 2 (Or Bottom (And (Next Top) (NextN 2 (NextN 1 (NextN 0 Top))))))
   ,
     testCase (Text.unpack formula3) $
-      parse (Parser.formula emptyCtx Parser.text) "input" formula3 @?=
+      parse (Parser.formula @Text @() emptyCtx Parser.text) "input" formula3 @?=
         Right (Forall 1 Top)
   ,
     testCase (Text.unpack formula4) $
-      parse (Parser.formula emptyCtx Parser.text) "input" formula4 @?=
+      parse (Parser.formula @Text @() emptyCtx Parser.text) "input" formula4 @?=
         Right
           (PropForallN
             "x"
@@ -281,7 +277,7 @@ parserTests = testGroup "Parsing"
                 (PropEq (fromList []) (Var "x") (IntValue 3)))))
   ,
     testCase (Text.unpack formula5) $
-      parse (Parser.formula emptyCtx Parser.text) "input" formula5 @?=
+      parse (Parser.formula @Text @() emptyCtx Parser.text) "input" formula5 @?=
         Right
           (PropForallN
             "x"
