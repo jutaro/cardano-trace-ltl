@@ -38,7 +38,7 @@ data TraceMessage = FormulaStartCheck {formula :: Formula TemporalEvent Text}
 
 -- | Smart constructor.
 formulaOutcome :: Formula TemporalEvent Text -> SatisfactionResult TemporalEvent Text -> TraceMessage
-formulaOutcome formula Satisfied = FormulaPositiveOutcome formula
+formulaOutcome formula Satisfied         = FormulaPositiveOutcome formula
 formulaOutcome formula (Unsatisfied rel) = FormulaNegativeOutcome formula rel
 
 green :: Text -> Text
@@ -50,7 +50,7 @@ red text = "\x001b[31m" <> text <> "\x001b[0m"
 prettyTraceMessage :: Envelop.TraceMessage -> Text
 prettyTraceMessage Envelop.TraceMessage{..} =
   toStrict $ toLazyText $ encodePrettyToTextBuilder  $
-    Map.insert "at" (TextValue (Text.show tmsgAt))   $
+    Map.insert "at" (TextValue (showT tmsgAt))       $
       Map.insert "namespace" (TextValue tmsgNS)      $
         Map.insert "host" (TextValue tmsgHost)       $
           Map.insert "thread" (TextValue tmsgThread) $
@@ -86,15 +86,15 @@ instance LogFormatting TraceMessage where
     [
       "formula" .= String (prettyFormula formula Prec.Universe)
     ,
-      "relevance" .= String (Text.show relevance)
+      "relevance" .= String (showT relevance)
     ]
 
   forHuman FormulaStartCheck{..} =
     "Starting satisfiability check on: " <> prettyFormula formula Prec.Universe
   forHuman FormulaProgressDump{..} =
-         "event/s: " <> Text.show eventsPerSecond <> "\n"
+         "\nevent/s: " <> showT eventsPerSecond <> "\n"
       <> "catch-up ratio: "
-            <> Text.show catchupRatio
+            <> showT catchupRatio
             <> "  // values above 1.0 <=> realtime"
             <> "\n"
       <> "formula: " <> prettyFormula formula Prec.Universe
@@ -125,7 +125,7 @@ instance MetaTrace TraceMessage where
   namespaceFor FormulaNegativeOutcome{} = Namespace [] ["TraceVerifier", "FormulaNegativeOutcome"]
 
   severityFor (Namespace [] ["TraceVerifier", "FormulaStartCheck"])       _ = Just Info
-  severityFor (Namespace [] ["TraceVerifier", "FormulaProgressDump"])     _ = Just Info
+  severityFor (Namespace [] ["TraceVerifier", "FormulaProgressDump"])     _ = Just Debug
   severityFor (Namespace [] ["TraceVerifier", "FormulaPositiveOutcome"])  _ = Just Info
   severityFor (Namespace [] ["TraceVerifier", "FormulaNegativeOutcome"])  _ = Just Notice
   severityFor _                                                           _ = Nothing
@@ -142,7 +142,6 @@ instance MetaTrace TraceMessage where
     Just "Formula evaluates to `false` against the given timeline of events."
   documentFor _ = Nothing
 
-  metricsDocFor :: Namespace a -> [(Text,Text)]
   metricsDocFor (Namespace [] ["TraceVerifier", "FormulaProgressDump"]) =
     [("catch_up_ratio", "The rate of event consumption by the verifier (s⁻¹).")]
   metricsDocFor _ = []

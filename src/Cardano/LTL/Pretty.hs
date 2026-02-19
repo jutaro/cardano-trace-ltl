@@ -9,12 +9,12 @@ module Cardano.LTL.Pretty (
   , prettyPropConstraints
   , prettyFormula) where
 
+import           Cardano.Logging               (showT)
 import           Cardano.LTL.Lang.Formula
 import           Cardano.LTL.Lang.Formula.Prec (Prec)
 import qualified Cardano.LTL.Lang.Formula.Prec as Prec
 import qualified Data.Set                      as Set
-import           Data.Text                     (Text, intercalate, pack)
-import qualified Data.Text                     as Text
+import           Data.Text                     (Text, intercalate)
 
 -- | Add parentheses when an inner precedence exceeds the outer one.
 surround :: Prec -> Prec -> Text -> Text
@@ -23,12 +23,12 @@ surround _ _ str = "(" <> str <> ")"
 
 -- | Render a property value.
 prettyPropValue :: PropValue -> Text
-prettyPropValue (IntValue i)  = pack (show i)
-prettyPropValue (TextValue x) = Text.show x
+prettyPropValue (IntValue i)  = showT i
+prettyPropValue (TextValue x) = showT x
 
 prettyPropKeyValueList :: [(PropName, PropValue)] -> Text
 prettyPropKeyValueList = intercalate "\n" . fmap go where
-  go (n, v) = pack (show n) <> " = " <> prettyPropValue v
+  go (n, v) =  showT n <> " = " <> prettyPropValue v
 
 -- | Render a property term.
 prettyPropTerm :: PropTerm -> Text
@@ -37,7 +37,7 @@ prettyPropTerm (Const idx) = prettyPropValue idx
 
 -- | Render a single property constraint.
 prettyPropConstraint :: PropConstraint -> Text
-prettyPropConstraint (PropConstraint k v) = pack (show k) <> " = " <> prettyPropTerm v
+prettyPropConstraint (PropConstraint k v) = showT k <> " = " <> prettyPropTerm v
 
 -- | Render a list of property constraints.
 prettyPropConstraints :: [PropConstraint] -> Text
@@ -119,6 +119,6 @@ prettyFormula (PropForallN x dom phi) lvl = surround lvl Prec.Universe $
       <> "{" <> intercalate ", " (fmap prettyPropValue (Set.toList dom)) <> "}"
       <> ")" <> ". " <> prettyFormula phi Prec.Universe
 prettyFormula (Atom c is) lvl = surround lvl Prec.Atom $
-  Text.show c <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
+  showT c <> "(" <> prettyPropConstraints (Set.toList is) <> ")"
 prettyFormula (PropEq _ t v) lvl = surround lvl Prec.Eq $
   prettyPropTerm t <> " = " <> prettyPropValue v

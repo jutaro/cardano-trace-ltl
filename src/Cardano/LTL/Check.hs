@@ -7,6 +7,7 @@ module Cardano.LTL.Check(
   ) where
 
 import           Cardano.LTL.Lang.Formula
+import           Data.List                (foldl')
 import           Data.Set                 (Set, insert, member)
 import qualified Data.Set                 as Set
 import           Data.Text                (Text)

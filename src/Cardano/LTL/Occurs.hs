@@ -5,6 +5,7 @@ module Cardano.LTL.Occurs (
   ) where
 
 import           Cardano.LTL.Lang.Formula
+import           Data.List                (foldl')
 
 -- The file concerns checking free variable occurrence in a formula.
 

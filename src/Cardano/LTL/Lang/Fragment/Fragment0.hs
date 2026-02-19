@@ -1,5 +1,6 @@
 module Cardano.LTL.Lang.Fragment.Fragment0(Fragment0(..), andList, orList) where
 import           Cardano.LTL.Lang.Formula (Relevance)
+import           Data.List                (foldl')
 
 -- | t ::= ☐ | ¬ t | t ∧ t | t ∨ t | t ⇒ t | ⊤ | ⊥
 --   NOTE: "☐" here stands for "atom".

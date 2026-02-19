@@ -26,20 +26,20 @@ import           Data.Foldable                      (for_)
 import           Data.IORef                         (IORef, newIORef, readIORef)
 import           Data.List                          (find)
 import qualified Data.Map                           as Map
-import           Data.Maybe                         (isJust, fromMaybe)
+import           Data.Maybe                         (fromMaybe, isJust)
 import           Data.Text                          (Text, unpack)
 import qualified Data.Text                          as Text
 import           Options.Applicative                hiding (Success)
 import           Streaming
 import           System.Exit                        (die)
 
+import           Data.Traversable                   (for)
 import           TraceVerifier.Cli                  (CliOptions (..), Mode (..),
                                                      opts)
 import           TraceVerifier.Common               (extractProps)
 import qualified TraceVerifier.TraceMessage         as App
 import           TraceVerifier.TraceMessage         (TraceMessage (..),
                                                      formulaOutcome)
-import Data.Traversable (for)
 
 instance Event TemporalEvent Text where
   ofTy (TemporalEvent _ msgs) c = isJust $ find (\msg -> msg.tmsgNS == c) msgs

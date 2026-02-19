@@ -15,6 +15,7 @@ import           Cardano.LTL.Lang.Formula (Formula, PropTerm (..), PropValue,
 import qualified Cardano.LTL.Lang.Formula as F
 import           Data.Function            (on)
 import           Data.Functor             ((<&>))
+import           Data.List                (foldl')
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
 

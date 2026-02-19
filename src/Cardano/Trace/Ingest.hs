@@ -1,7 +1,7 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 
 module Cardano.Trace.Ingest
@@ -14,24 +14,28 @@ module Cardano.Trace.Ingest
        , ingestFileThreaded
        ) where
 
-import Control.Concurrent
-import Control.Concurrent.Chan.Unagi as Unagi
-import Control.Concurrent.STM.TVar
-import Control.Exception
-import Control.Monad (forever, forM_, unless, void, when)
-import Control.Monad.STM (atomically)
-import Data.Aeson (FromJSON(..), decodeStrict', withObject, (.:))
-import Data.Bits (shiftL, xor)
-import Data.Char (ord)
-import Data.ByteString.Char8 as ByteString (ByteString, hGetLine)
-import qualified Data.Map.Strict as Map
-import Data.Maybe (isJust)
-import Data.Time.Clock (NominalDiffTime, UTCTime)
-import Data.Time.Clock.POSIX
-import Data.Word (Word64)
-import System.Directory (doesFileExist)
-import System.IO
-import System.IO.Error (isEOFError)
+import           Control.Concurrent
+import           Control.Concurrent.Chan.Unagi as Unagi
+import           Control.Concurrent.STM.TVar
+import           Control.Exception
+import           Control.Monad                 (forM_, forever, unless, void,
+                                                when)
+import           Control.Monad.STM             (atomically)
+import           Data.Aeson                    (FromJSON (..), decodeStrict',
+                                                withObject, (.:))
+import           Data.Bits                     (shiftL, xor)
+import           Data.ByteString.Char8         as ByteString (ByteString,
+                                                              hGetLine)
+import           Data.Char                     (ord)
+import           Data.List                     (foldl')
+import qualified Data.Map.Strict               as Map
+import           Data.Maybe                    (isJust)
+import           Data.Time.Clock               (NominalDiffTime, UTCTime)
+import           Data.Time.Clock.POSIX
+import           Data.Word                     (Word64)
+import           System.Directory              (doesFileExist)
+import           System.IO
+import           System.IO.Error               (isEOFError)
 
 
 -- NOTES:
@@ -41,9 +45,9 @@ import System.IO.Error (isEOFError)
 
 
 data Ingestor = Ingestor
-  { ingRetentionMs  :: !Int
-  , ingChanRef      :: !(InChan ByteString)
-  , ingInBuffer     :: !(TVar (Map.Map LineKey ByteString))
+  { ingRetentionMs :: !Int
+  , ingChanRef     :: !(InChan ByteString)
+  , ingInBuffer    :: !(TVar (Map.Map LineKey ByteString))
   }
 
 -- In the unlikely case there's a collision of timestamps coming from
