@@ -99,6 +99,7 @@ checkOffline tr eventDuration file phis = do
   events <- read file eventDuration
   forConcurrently_ phis $ \phi ->
     check tr phi events
+  threadDelay 200_000 -- Give the tracer a grace period to output the logs to whatever backend
 
 -- | Convert time unit used in the yaml (currently second) input to μs.
 unitToMicrosecond :: Word -> Word

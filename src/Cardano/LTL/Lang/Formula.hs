@@ -50,20 +50,6 @@ data PropConstraint = PropConstraint PropName PropTerm deriving (Show, Eq, Ord)
 -- | Set of relevant events.
 type Relevance event ty = Set (event, ty)
 
--- v ::= <int> | "<string>"
--- v̄ ::= {v, ..., v}
--- t ::= <int> | "<string>" | x
--- c ::= "<string>" = t
--- ty ::= <finite type>
-
--- φ{atom} ::= ⊤ | ⊥ | A ty c̄ | (φ{≥universe})
--- φ{eq} ::= t = v
--- φ{prefix} ::= ◯ φ{≥atom} | ◯ᵏ φ{≥atom} | ♢ᵏ φ{≥atom} | ☐ ᪲ₖ φ{≥atom} | ☐ᵏ φ{≥atom} | ¬ φ{≥atom}
--- φ{and} ::= φ{≥and} ∧ φ{>and}
--- φ{or} ::= φ{≥or} ∨ φ{>or}
--- φ{implies} ::= φ{>implies} ⇒ φ{≥implies}
--- φ{universe} ::= ∀(x ∈ v̄). φ{≥universe} | ∀x. φ{≥universe} | φ{≥implies} \|ᵏ φ{≥implies}
-
 -- | Default name: φ.
 -- | A type of Linear Temporal Logic formulas over a base type ty.
 data Formula event ty =
@@ -98,7 +84,7 @@ data Formula event ty =
      --   φ |¹⁺ᵏ ψ ≡ ψ ∨ ¬ ψ ∧ φ ∧ (φ |ᵏ ψ)
      --   φ until ψ in the n units of time from now
    | UntilN Word (Formula event ty) (Formula event ty)
-     -- | A ty c̄
+     -- | ty c̄
    | Atom ty (Set PropConstraint)
    -------------------------------------
 
@@ -204,50 +190,6 @@ interpTimeunit _ phi@Atom{} = phi
 interpTimeunit _ phi@PropEq{} = phi
 interpTimeunit f (PropForall x phi) = PropForall x (interpTimeunit f phi)
 interpTimeunit f (PropForallN x dom phi) = PropForallN x dom (interpTimeunit f phi)
-
--- Satisfiability rules of formulas (assuming a background first-order logic):
---  ∅ ⊧ φ
--- (∅ ⊧ A ty c̄)        ⇔ ⊥
--- (∅ ⊧ ◯ (φ ∨ ψ))     ⇔ (∅ ⊧ ◯ φ) ∨ (∅ ⊧ ◯ ψ)
--- (∅ ⊧ ◯ (φ ∧ ψ))     ⇔ (∅ ⊧ ◯ φ) ∧ (∅ ⊧ ◯ ψ)
--- (∅ ⊧ ◯ (φ ⇒ ψ))     ⇔ (∅ ⊧ ◯ φ) ⇒ (∅ ⊧ ◯ ψ)
--- (∅ ⊧ ◯ (¬ φ))       ⇔ ¬ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ ⊥)           ⇔ ⊥
--- (∅ ⊧ ◯ ⊤)           ⇔ ⊤
--- (∅ ⊧ ◯ (t = v))     ⇔ t = v
--- (∅ ⊧ ◯ (A ty c̄))    ⇔ ⊥
--- (∅ ⊧ ◯ (◯ φ))       ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (◯ᵏ φ))      ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (☐ ᪲ φ))      ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (♢⁰ φ))      ⇔ ⊥
--- (∅ ⊧ ◯ (♢¹⁺ᵏ φ))    ⇔ (∅ ⊧ ◯ (φ ∨ ◯ (♢ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (☐⁰ φ))      ⇔ ⊤
--- (∅ ⊧ ◯ (☐¹⁺ᵏ φ))    ⇔ (∅ ⊧ ◯ (φ ∧ ◯ (☐ᵏ φ))) ⇔ ... ⇔ (∅ ⊧ ◯ φ)
--- (∅ ⊧ ◯ (φ |⁰ ψ))    ⇔ ⊤
--- (∅ ⊧ ◯ (φ |¹⁺ᵏ ψ))  ⇔ (∅ ⊧ ◯ (...))
---
---
---  t t̄ ⊧ φ
--- (_ t̄ ⊧ ◯ φ)         ⇔ (t̄ ⊧ φ)
--- (e _ ⊧ A(p, c̄))     ⇔ c̄ ⊆ props e   if ty e = p
---                       ⊥             otherwise, where
---
---     ∅ ⊆ P ⇔ ⊤
---     {x = t} ⊔ c̄ ⊆ P ⇔ t = P(x) ∧ c̄ ⊆ P   if P(x) is defined
---                       ⊥                  otherwise
---
---  t̄ ⊧ φ // connective & event property fragments
--- (t̄ ⊧ ∀x. φ)         ⇔ (∀x. (t̄ ⊧ φ))
--- (t̄ ⊧ ∀(x ∈ v̄). φ)   ⇔ (∀(x ∈ v̄). (t̄ ⊧ φ))
--- (t̄ ⊧ φ ∨ ψ)         ⇔ ((t̄ ⊧ φ) ∨ (t̄ ⊧ ψ))
--- (t̄ ⊧ φ ∧ ψ)         ⇔ ((t̄ ⊧ φ) ∧ (t̄ ⊧ ψ))
--- (t̄ ⊧ φ ⇒ ψ)         ⇔ ((t̄ ⊧ φ) ⇒ (t̄ ⊧ ψ))
--- (t̄ ⊧ ¬ φ)           ⇔ ¬ (t̄ ⊧ φ)
--- (t̄ ⊧ ⊥)             ⇔ ⊥
--- (t̄ ⊧ ⊤)             ⇔ ⊤
--- (e _ ⊧ A(p, c̄))     ⇔ c̄ ⊆ props e   if ty e = p
---                       ⊥             otherwise
---
 
 -- | A constraint signifying that `a` is an `Event` over base `ty`:
 --    — Given an element of `ty`, `ofTy` shall name whether the event is of the given type.

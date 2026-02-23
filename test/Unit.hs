@@ -110,8 +110,8 @@ log11 =
 logEmpty :: [Msg]
 logEmpty = []
 
--- ∀i. ☐ (Start("idx" = i) ⇒ ♢² (Success("idx" = i) ∨ Failure("idx" = i)))
--- Start must be followed by either a corresponding success or failure within 3 units of time.
+-- ∀i. ☐ (Start{"idx" = i} ⇒ ♢³ (Success{"idx" = i} ∨ Failure{"idx" = i}))
+-- Start must be followed by either a corresponding success or failure within 3 temporal steps.
 prop1 :: Formula Msg Ty
 prop1 = PropForall "i" $ Forall 0 $
   Implies
@@ -123,7 +123,7 @@ prop1 = PropForall "i" $ Forall 0 $
 
     )
 
--- ∀i. ¬ (Success("idx" = i) ∨ Failure("idx" = i)) |˜¹⁰⁰ Start("idx" = i)
+-- ∀i. ¬ (Success{"idx" = i} ∨ Failure{"idx" = i}) |˜¹⁰⁰ Start{"idx" = i}
 -- Start mustn't be preceded by a corresponding success or failure.
 prop2 :: Formula Msg Ty
 prop2 = PropForall "i" $ UntilN
@@ -200,12 +200,12 @@ prop2SatisfiabilityTests = testGroup ("Satisfiability of: " <> unpack (prettyFor
   ]
 
 formula0 :: Text
-formula0 = "☐ ᪲ (∀x. \"Forge.Loop.StartLeadershipCheck\"(\"slot\" = x) ⇒ \
-  \♢³⁰⁰⁰ (\"Forge.Loop.NodeIsLeader\"(\"slot\" = x) ∨ \"Forge.Loop.NodeNotLeader\"(\"slot\" = x)))"
+formula0 = "☐ ᪲ (∀x. \"Forge.Loop.StartLeadershipCheck\"{\"slot\" = x} ⇒ \
+  \♢³⁰⁰⁰ (\"Forge.Loop.NodeIsLeader\"{\"slot\" = x} ∨ \"Forge.Loop.NodeNotLeader\"{\"slot\" = x}))"
 
 formula1 :: Text
 formula1 =
-  "☐ ᪲₄₂ (∀i. (¬ (\"NodeIsLeader\"(\"slot\" = i) ∨ \"NodeNotLeader\"(\"slot\" = i)) |¹²³ \"StartLeadershipCheck\"(\"slot\" = i)))"
+  "☐ ᪲₄₂ (∀i. (¬ (\"NodeIsLeader\"{\"slot\" = i} ∨ \"NodeNotLeader\"{\"slot\" = i}) |¹²³ \"StartLeadershipCheck\"{\"slot\" = i}))"
 
 formula2 :: Text
 formula2 =

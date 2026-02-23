@@ -14,7 +14,7 @@ import qualified Data.Set                   as Set
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Void                  (Void)
-import           GHC.Unicode                (isControl)
+import           GHC.Unicode                (isControl, isSpace)
 import           Prelude                    hiding (head)
 import           Text.Megaparsec
 import           Text.Megaparsec.Char       (char, space, string)
@@ -89,7 +89,7 @@ variableIdentifier = do
 text :: Parser Text
 text = Text.pack <$> (char '\"' *> many one) <* char '\"' where
   one :: Parser Char
-  one = satisfy (\x -> not (isControl x) && (x /= '"') && (x /= '\n') && (x /= '\r'))
+  one = satisfy (\x -> not (isControl x) && (not (isSpace x) || x == ' ') && x /= '"')
 
 formulaBottom :: Parser (Formula event ty)
 formulaBottom = Bottom <$ string "⊥"
@@ -101,7 +101,7 @@ constraint :: Parser PropConstraint
 constraint = PropConstraint <$> (text <* space <* char '=') <*> (space *> propTerm)
 
 constraints :: Parser (Set PropConstraint)
-constraints = Set.fromList <$> (char '(' *> space *> sepBy constraint (space *> char ',' <* space) <* space <* char ')')
+constraints = Set.fromList <$> (char '{' *> space *> sepBy constraint (space *> char ',' <* space) <* space <* char '}')
 
 formulaInParens :: Context -> Parser ty -> Parser (Formula event ty)
 formulaInParens ctx ty = char '(' *> space *> formulaUniverse ctx ty <* space <* char ')'
